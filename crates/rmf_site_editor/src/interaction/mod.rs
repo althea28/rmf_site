@@ -84,6 +84,9 @@ pub use select::*;
 pub mod visual_cue;
 pub use visual_cue::*;
 
+pub mod billboard;
+pub use billboard::*;
+
 use bevy::prelude::*;
 use bevy_mod_outline::OutlinePlugin;
 
@@ -214,6 +217,8 @@ impl Plugin for InteractionPlugin {
                     update_physical_camera_preview,
                     dirty_changed_lifts,
                     handle_preview_window_close,
+                    update_billboard_hover_mesh_location,
+                    update_billboard_text_visibility_on_hover,
                 )
                     .run_if(in_state(InteractionState::Enable)),
             )
@@ -231,6 +236,7 @@ impl Plugin for InteractionPlugin {
                     add_cursor_hover_visualization,
                     add_physical_light_visual_cues,
                     add_popups,
+                    add_billboard_visual_cues,
                 )
                     .run_if(in_state(InteractionState::Enable))
                     .in_set(InteractionUpdateSet::AddVisuals),
