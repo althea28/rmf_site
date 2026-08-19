@@ -46,16 +46,22 @@ pub struct BuildingPreview<'w> {
 impl<'w> WidgetSystem<Tile> for BuildingPreview<'w> {
     fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
         let mut params = state.get_mut(world);
-        if *params.app_state == AppState::SiteEditor {
+        params.show_widget(ui);
+    }
+}
+
+impl<'w> BuildingPreview<'w> {
+    pub fn show_widget(&mut self, ui: &mut Ui) {
+        if *self.app_state == AppState::SiteEditor {
             if ui.add(Button::new("Building preview")).clicked() {
-                params.next_app_state.set(AppState::SiteVisualizer);
+                self.next_app_state.set(AppState::SiteVisualizer);
             }
         }
 
-        if *params.app_state == AppState::SiteVisualizer {
+        if *self.app_state == AppState::SiteVisualizer {
             if ui
                 .add(Button::image_and_text(
-                    params.icons.alignment.egui(),
+                    self.icons.alignment.egui(),
                     "Align Drawings",
                 ))
                 .on_hover_text(
@@ -63,31 +69,31 @@ impl<'w> WidgetSystem<Tile> for BuildingPreview<'w> {
                 )
                 .clicked()
             {
-                if let Some(site) = params.current_workspace.root {
-                    params.align_site.write(AlignSiteDrawings(site));
+                if let Some(site) = self.current_workspace.root {
+                    self.align_site.write(AlignSiteDrawings(site));
                 }
             }
 
             if ui
                 .add(Button::image_and_text(
-                    params.icons.exit.egui(),
+                    self.icons.exit.egui(),
                     "Return to site editor",
                 ))
                 .clicked()
             {
-                params.next_app_state.set(AppState::SiteEditor);
+                self.next_app_state.set(AppState::SiteEditor);
             }
         }
 
-        if *params.app_state == AppState::SiteDrawingEditor {
+        if *self.app_state == AppState::SiteDrawingEditor {
             if ui
                 .add(Button::image_and_text(
-                    params.icons.exit.egui(),
+                    self.icons.exit.egui(),
                     "Return to site editor",
                 ))
                 .clicked()
             {
-                params.finish_edit_drawing.write(FinishEditDrawing(None));
+                self.finish_edit_drawing.write(FinishEditDrawing(None));
             }
         }
     }

@@ -29,8 +29,6 @@ use rmf_site_egui::*;
 use rmf_site_format::{InstanceMarker, SiteID};
 use rmf_site_picking::Selection;
 
-const INSTANCES_VIEWER_HEIGHT: f32 = 200.0;
-
 /// Add a plugin for viewing and editing a list of all levels
 #[derive(Default)]
 pub struct ViewModelInstancesPlugin {}
@@ -90,7 +88,6 @@ impl<'w, 's> ViewModelInstances<'w, 's> {
         if let Some(current_scenario_entity) = self.current_scenario.0 {
             let mut unaffiliated_instances = Vec::<Entity>::new();
             ScrollArea::vertical()
-                .max_height(INSTANCES_VIEWER_HEIGHT)
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     for (desc_entity, desc_name, _) in self.model_descriptions.iter() {
