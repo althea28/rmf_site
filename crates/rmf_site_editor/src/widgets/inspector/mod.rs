@@ -386,8 +386,7 @@ impl<'w, 's> Inspector<'w, 's> {
         }
 
         if selection.selected.len() > 1 {
-            let instances: SmallVec<[Entity; 16]> =
-                selection.selected.iter().cloned().collect();
+            let instances: SmallVec<[Entity; 16]> = selection.selected.iter().cloned().collect();
 
             let mut inspect_multi_selection = state.get_mut(world).inspect_multi_selection;
             inspect_multi_selection.show_widget(instances, ui);
@@ -405,15 +404,16 @@ impl<'w, 's> Inspector<'w, 's> {
                 selection = inspect_for.entity;
             }
 
-            let (label, site_id) =
-                if let Ok((category, site_id)) = params.heading.get(selection) {
-                    (
-                        category.map(|x| x.label().to_string()).unwrap_or_else(|| "<Unknown Type>".to_string()),
-                        site_id.copied(),
-                    )
-                } else {
-                    ("<Unknown Type>".to_string(), None)
-                };
+            let (label, site_id) = if let Ok((category, site_id)) = params.heading.get(selection) {
+                (
+                    category
+                        .map(|x| x.label().to_string())
+                        .unwrap_or_else(|| "<Unknown Type>".to_string()),
+                    site_id.copied(),
+                )
+            } else {
+                ("<Unknown Type>".to_string(), None)
+            };
 
             let children: Result<SmallVec<[_; 16]>, _> = params
                 .children

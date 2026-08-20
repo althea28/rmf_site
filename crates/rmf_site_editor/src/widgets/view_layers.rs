@@ -62,8 +62,6 @@ pub struct ViewLayers<'w, 's> {
     view_layer: InspectLayer<'w, 's>,
 }
 
-
-
 impl<'w, 's> ViewLayers<'w, 's> {
     pub fn show_widget(&mut self, ui: &mut Ui) {
         let Some(current_level) = self.current_level.0 else {

@@ -69,7 +69,6 @@ pub struct ViewModelInstances<'w, 's> {
     delete: EventWriter<'w, Delete>,
 }
 
-
 impl<'w, 's> ViewModelInstances<'w, 's> {
     pub fn show_widget(&mut self, ui: &mut Ui) {
         if let Some(current_scenario_entity) = self.current_scenario.0 {

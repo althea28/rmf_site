@@ -15,10 +15,7 @@
  *
 */
 
-use bevy::{
-    ecs::system::SystemState,
-    prelude::*,
-};
+use bevy::{ecs::system::SystemState, prelude::*};
 use bevy_egui::egui::{self, Color32, RichText, ScrollArea, Ui, WidgetText};
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use serde::{Deserialize, Serialize};
@@ -193,8 +190,8 @@ impl<'a> TabViewer for PropertiesTabViewer<'a> {
         ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
-                self.world.resource_scope::<PropertiesTabStates, ()>(|world, mut states| {
-                    match tab {
+                self.world.resource_scope::<PropertiesTabStates, ()>(
+                    |world, mut states| match tab {
                         PropertyTab::Levels => render_tab!(states.levels, world, ui),
                         PropertyTab::Scenarios => render_tab!(states.scenarios, world, ui),
                         PropertyTab::Models => render_tab!(states.models, world, ui),
@@ -202,9 +199,12 @@ impl<'a> TabViewer for PropertiesTabViewer<'a> {
                         PropertyTab::Layers => render_tab!(states.layers, world, ui),
                         PropertyTab::Groups => render_tab!(states.groups, world, ui),
                         PropertyTab::Lights => render_tab!(states.lights, world, ui),
-                        PropertyTab::BuildingPreview => render_tab!(states.building_preview, world, ui),
+                        PropertyTab::BuildingPreview => {
+                            render_tab!(states.building_preview, world, ui)
+                        }
                         PropertyTab::Inspect => {
-                            let main_inspector_id = world.get_resource::<MainInspector>().map(|m| m.get());
+                            let main_inspector_id =
+                                world.get_resource::<MainInspector>().map(|m| m.get());
                             if let Some(main_inspector_id) = main_inspector_id {
                                 Inspector::show_inspector(
                                     &mut states.inspector,
@@ -215,8 +215,8 @@ impl<'a> TabViewer for PropertiesTabViewer<'a> {
                                 );
                             }
                         }
-                    }
-                });
+                    },
+                );
             });
     }
 }
@@ -236,7 +236,10 @@ pub fn show_properties_panel(
         return;
     }
 
-    let settings = world.get::<PanelSettings>(id).copied().unwrap_or(PanelSettings::right());
+    let settings = world
+        .get::<PanelSettings>(id)
+        .copied()
+        .unwrap_or(PanelSettings::right());
 
     let mut style = Style::from_egui(context.style().as_ref());
     style.tab_bar.show_scroll_bar_on_overflow = true;
@@ -268,7 +271,10 @@ pub fn show_properties_panel(
                                             dock_state.dock_state.remove_tab(index);
                                         }
                                     } else {
-                                        dock_state.dock_state.main_surface_mut().push_to_focused_leaf(tab);
+                                        dock_state
+                                            .dock_state
+                                            .main_surface_mut()
+                                            .push_to_focused_leaf(tab);
                                     }
                                 }
                             }
@@ -277,7 +283,10 @@ pub fn show_properties_panel(
                             if ui.button("Restore All Tabs").clicked() {
                                 for &tab in PropertyTab::all() {
                                     if dock_state.dock_state.find_tab(&tab).is_none() {
-                                        dock_state.dock_state.main_surface_mut().push_to_focused_leaf(tab);
+                                        dock_state
+                                            .dock_state
+                                            .main_surface_mut()
+                                            .push_to_focused_leaf(tab);
                                     }
                                 }
                             }
@@ -290,10 +299,7 @@ pub fn show_properties_panel(
 
                 ui.separator();
 
-                let mut tab_viewer = PropertiesTabViewer {
-                    world,
-                    settings,
-                };
+                let mut tab_viewer = PropertiesTabViewer { world, settings };
 
                 DockArea::new(&mut dock_state.dock_state)
                     .style(style)

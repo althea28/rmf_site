@@ -88,7 +88,6 @@ pub struct ViewGroupsEvents<'w, 's> {
     object_placement: ObjectPlacement<'w, 's>,
 }
 
-
 impl<'w, 's> ViewGroups<'w, 's> {
     pub fn show_widget(&mut self, ui: &mut Ui) {
         let Some(site) = self.events.current_workspace.root else {
