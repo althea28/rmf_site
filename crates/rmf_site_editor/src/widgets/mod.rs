@@ -159,10 +159,10 @@ impl Plugin for StandardPropertiesPanelPlugin {
         .init_resource::<PropertiesTabStates>();
 
         let properties_panel_id = app.world().resource::<PropertiesPanel>().id();
-        let dock_panel_widget = PanelWidget::new(show_properties_panel, app.world_mut());
+        let panel_widget = PanelWidget::new(show_properties_panel, app.world_mut());
         app.world_mut()
             .entity_mut(properties_panel_id)
-            .insert(dock_panel_widget);
+            .insert(panel_widget);
     }
 }
 

@@ -27,7 +27,6 @@ use crate::{
 };
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_egui::egui::{Button, CollapsingHeader, DragValue, ScrollArea, Ui};
-use rmf_site_egui::{PropertiesTilePlugin, Tile, WidgetSystem};
 use rmf_site_picking::Selection;
 
 /// Add a widget for viewing a list of layers
@@ -35,9 +34,7 @@ use rmf_site_picking::Selection;
 pub struct ViewLayersPlugin {}
 
 impl Plugin for ViewLayersPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(PropertiesTilePlugin::<ViewLayers>::new());
-    }
+    fn build(&self, _app: &mut App) {}
 }
 
 #[derive(SystemParam)]
@@ -63,23 +60,9 @@ pub struct ViewLayers<'w, 's> {
     selection: Res<'w, Selection>,
     current_level: Res<'w, CurrentLevel>,
     view_layer: InspectLayer<'w, 's>,
-    app_state: Res<'w, State<AppState>>,
 }
 
-impl<'w, 's> WidgetSystem<Tile> for ViewLayers<'w, 's> {
-    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
-        let mut params = state.get_mut(world);
-        if *params.app_state.get() != AppState::SiteEditor {
-            return;
-        }
-        ui.separator();
-        CollapsingHeader::new("Layers")
-            .default_open(false)
-            .show(ui, |ui| {
-                params.show_widget(ui);
-            });
-    }
-}
+
 
 impl<'w, 's> ViewLayers<'w, 's> {
     pub fn show_widget(&mut self, ui: &mut Ui) {

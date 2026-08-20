@@ -22,15 +22,12 @@ use crate::{
 };
 use bevy::prelude::*;
 use bevy_egui::egui::{Button, Ui};
-use rmf_site_egui::*;
 
 #[derive(Default)]
 pub struct BuildingPreviewPlugin {}
 
 impl Plugin for BuildingPreviewPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_plugins(PropertiesTilePlugin::<BuildingPreview>::new());
-    }
+    fn build(&self, _app: &mut App) {}
 }
 
 #[derive(SystemParam)]
@@ -41,13 +38,6 @@ pub struct BuildingPreview<'w> {
     current_workspace: Res<'w, CurrentWorkspace>,
     align_site: EventWriter<'w, AlignSiteDrawings>,
     finish_edit_drawing: EventWriter<'w, FinishEditDrawing>,
-}
-
-impl<'w> WidgetSystem<Tile> for BuildingPreview<'w> {
-    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
-        let mut params = state.get_mut(world);
-        params.show_widget(ui);
-    }
 }
 
 impl<'w> BuildingPreview<'w> {

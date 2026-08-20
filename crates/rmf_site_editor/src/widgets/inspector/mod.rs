@@ -353,20 +353,20 @@ impl<'w, 's> WidgetSystem<Tile> for Inspector<'w, 's> {
         CollapsingHeader::new("Inspect")
             .default_open(true)
             .show(ui, |ui| {
-                Self::render_inspector(state, world, id, panel, ui);
+                Self::show_inspector(state, world, id, panel, ui);
             });
     }
 }
 
 impl<'w, 's> Inspector<'w, 's> {
-    pub fn render_inspector(
+    pub fn show_inspector(
         state: &mut SystemState<Self>,
         world: &mut World,
         main_inspector_id: Entity,
         panel: PanelSettings,
         ui: &mut Ui,
     ) {
-        let Some(selection) = world.get_resource::<Selection>().cloned() else {
+        let Some(selection) = world.get_resource::<Selection>() else {
             ui.label("ERROR: Selection resource is not available");
             return;
         };
@@ -389,8 +389,8 @@ impl<'w, 's> Inspector<'w, 's> {
             let instances: SmallVec<[Entity; 16]> =
                 selection.selected.iter().cloned().collect();
 
-            let mut params = state.get_mut(world);
-            params.inspect_multi_selection.show_widget(instances, ui);
+            let mut inspect_multi_selection = state.get_mut(world).inspect_multi_selection;
+            inspect_multi_selection.show_widget(instances, ui);
             state.apply(world);
             return;
         }

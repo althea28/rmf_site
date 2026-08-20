@@ -29,7 +29,6 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::egui::{Button, CollapsingHeader, TextEdit, Ui, Widget};
-use rmf_site_egui::{PropertiesTilePlugin, Tile, WidgetSystem};
 use std::any::TypeId;
 
 /// Add a widget for viewing different kinds of groups.
@@ -38,8 +37,7 @@ pub struct ViewGroupsPlugin {}
 
 impl Plugin for ViewGroupsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<GroupViewModes>()
-            .add_plugins(PropertiesTilePlugin::<ViewGroups>::new());
+        app.init_resource::<GroupViewModes>();
     }
 }
 
@@ -77,7 +75,6 @@ pub struct ViewGroups<'w, 's> {
     >,
     icons: Res<'w, Icons>,
     group_view_modes: ResMut<'w, GroupViewModes>,
-    app_state: Res<'w, State<AppState>>,
     events: ViewGroupsEvents<'w, 's>,
 }
 
@@ -91,19 +88,6 @@ pub struct ViewGroupsEvents<'w, 's> {
     object_placement: ObjectPlacement<'w, 's>,
 }
 
-impl<'w, 's> WidgetSystem<Tile> for ViewGroups<'w, 's> {
-    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
-        let mut params = state.get_mut(world);
-        if *params.app_state.get() != AppState::SiteEditor {
-            return;
-        }
-        CollapsingHeader::new("Groups")
-            .default_open(false)
-            .show(ui, |ui| {
-                params.show_widget(ui);
-            });
-    }
-}
 
 impl<'w, 's> ViewGroups<'w, 's> {
     pub fn show_widget(&mut self, ui: &mut Ui) {

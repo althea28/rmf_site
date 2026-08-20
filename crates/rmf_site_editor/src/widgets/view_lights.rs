@@ -37,7 +37,6 @@ use futures_lite::future;
 #[cfg(not(target_arch = "wasm32"))]
 use rfd::AsyncFileDialog;
 use rmf_site_camera::HeadlightToggle;
-use rmf_site_egui::*;
 use rmf_site_picking::Select;
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
@@ -48,8 +47,7 @@ pub struct ViewLightsPlugin {}
 
 impl Plugin for ViewLightsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LightDisplay>()
-            .add_plugins(PropertiesTilePlugin::<ViewLights>::new());
+        app.init_resource::<LightDisplay>();
     }
 }
 
@@ -62,21 +60,6 @@ pub struct ViewLights<'w, 's> {
     display_light: ResMut<'w, LightDisplay>,
     selector: SelectorWidget<'w, 's>,
     commands: Commands<'w, 's>,
-    app_state: Res<'w, State<AppState>>,
-}
-
-impl<'w, 's> WidgetSystem<Tile> for ViewLights<'w, 's> {
-    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
-        let mut params = state.get_mut(world);
-        if *params.app_state.get() != AppState::SiteEditor {
-            return;
-        }
-        CollapsingHeader::new("Lights")
-            .default_open(false)
-            .show(ui, |ui| {
-                params.show_widget(ui);
-            });
-    }
 }
 
 impl<'w, 's> ViewLights<'w, 's> {

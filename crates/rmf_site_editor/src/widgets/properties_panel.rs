@@ -182,55 +182,31 @@ impl<'a> TabViewer for PropertiesTabViewer<'a> {
         let tab = *tab;
         let settings = self.settings;
 
+        macro_rules! render_tab {
+            ($state:expr, $world:expr, $ui:expr) => {{
+                let mut params = $state.get_mut($world);
+                params.show_widget($ui);
+                $state.apply($world);
+            }};
+        }
+
         ScrollArea::vertical()
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 self.world.resource_scope::<PropertiesTabStates, ()>(|world, mut states| {
                     match tab {
-                        PropertyTab::Levels => {
-                            let mut params = states.levels.get_mut(world);
-                            params.show_widget(ui);
-                            states.levels.apply(world);
-                        }
-                        PropertyTab::Scenarios => {
-                            let mut params = states.scenarios.get_mut(world);
-                            params.show_widget(ui);
-                            states.scenarios.apply(world);
-                        }
-                        PropertyTab::Models => {
-                            let mut params = states.models.get_mut(world);
-                            params.show_widget(ui);
-                            states.models.apply(world);
-                        }
-                        PropertyTab::Navigation => {
-                            let mut params = states.nav_graphs.get_mut(world);
-                            params.show_widget(ui);
-                            states.nav_graphs.apply(world);
-                        }
-                        PropertyTab::Layers => {
-                            let mut params = states.layers.get_mut(world);
-                            params.show_widget(ui);
-                            states.layers.apply(world);
-                        }
-                        PropertyTab::Groups => {
-                            let mut params = states.groups.get_mut(world);
-                            params.show_widget(ui);
-                            states.groups.apply(world);
-                        }
-                        PropertyTab::Lights => {
-                            let mut params = states.lights.get_mut(world);
-                            params.show_widget(ui);
-                            states.lights.apply(world);
-                        }
-                        PropertyTab::BuildingPreview => {
-                            let mut params = states.building_preview.get_mut(world);
-                            params.show_widget(ui);
-                            states.building_preview.apply(world);
-                        }
+                        PropertyTab::Levels => render_tab!(states.levels, world, ui),
+                        PropertyTab::Scenarios => render_tab!(states.scenarios, world, ui),
+                        PropertyTab::Models => render_tab!(states.models, world, ui),
+                        PropertyTab::Navigation => render_tab!(states.nav_graphs, world, ui),
+                        PropertyTab::Layers => render_tab!(states.layers, world, ui),
+                        PropertyTab::Groups => render_tab!(states.groups, world, ui),
+                        PropertyTab::Lights => render_tab!(states.lights, world, ui),
+                        PropertyTab::BuildingPreview => render_tab!(states.building_preview, world, ui),
                         PropertyTab::Inspect => {
                             let main_inspector_id = world.get_resource::<MainInspector>().map(|m| m.get());
                             if let Some(main_inspector_id) = main_inspector_id {
-                                Inspector::render_inspector(
+                                Inspector::show_inspector(
                                     &mut states.inspector,
                                     world,
                                     main_inspector_id,
@@ -270,7 +246,7 @@ pub fn show_properties_panel(
 
     let config = world.get::<PanelConfig>(id).copied().unwrap_or_default();
 
-    egui::SidePanel::right("properties_dock_panel")
+    egui::SidePanel::right("properties_panel")
         .resizable(config.resizable)
         .default_width(config.default_dimension)
         .min_width(200.0)
@@ -279,31 +255,33 @@ pub fn show_properties_panel(
             world.resource_scope::<PropertiesPanelState, ()>(|world, mut dock_state| {
                 // Add button in top header bar to manage closed/open tabs
                 ui.horizontal(|ui| {
-                    ui.menu_button("Tabs ▾", |ui| {
-                        for &tab in PropertyTab::all() {
-                            let is_open = dock_state.dock_state.find_tab(&tab).is_some();
-                            if ui.selectable_label(is_open, tab.title()).clicked() {
-                                if is_open {
-                                    if let Some(index) = dock_state.dock_state.find_tab(&tab) {
-                                        dock_state.dock_state.remove_tab(index);
-                                    }
-                                } else {
-                                    dock_state.dock_state.main_surface_mut().push_to_focused_leaf(tab);
-                                }
-                                ui.close_menu();
-                            }
-                        }
-
-                        ui.separator();
-                        if ui.button("Restore All Tabs").clicked() {
+                    egui::ComboBox::from_id_salt("tabs_manager_menu")
+                        .selected_text("Tabs")
+                        .width(0.0)
+                        .height(400.0)
+                        .show_ui(ui, |ui| {
                             for &tab in PropertyTab::all() {
-                                if dock_state.dock_state.find_tab(&tab).is_none() {
-                                    dock_state.dock_state.main_surface_mut().push_to_focused_leaf(tab);
+                                let is_open = dock_state.dock_state.find_tab(&tab).is_some();
+                                if ui.selectable_label(is_open, tab.title()).clicked() {
+                                    if is_open {
+                                        if let Some(index) = dock_state.dock_state.find_tab(&tab) {
+                                            dock_state.dock_state.remove_tab(index);
+                                        }
+                                    } else {
+                                        dock_state.dock_state.main_surface_mut().push_to_focused_leaf(tab);
+                                    }
                                 }
                             }
-                            ui.close_menu();
-                        }
-                    });
+
+                            ui.separator();
+                            if ui.button("Restore All Tabs").clicked() {
+                                for &tab in PropertyTab::all() {
+                                    if dock_state.dock_state.find_tab(&tab).is_none() {
+                                        dock_state.dock_state.main_surface_mut().push_to_focused_leaf(tab);
+                                    }
+                                }
+                            }
+                        });
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(RichText::new("Properties").weak());
