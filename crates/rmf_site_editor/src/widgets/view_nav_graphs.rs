@@ -28,7 +28,8 @@ use crate::{
     AppState, ChangeRank, CurrentWorkspace, WorkspaceLoader, WorkspaceSaver,
 };
 use bevy::{ecs::system::SystemParam, prelude::*};
-use bevy_egui::egui::{CollapsingHeader, ImageButton, TextEdit, Ui, Widget};
+use bevy_egui::egui::{ImageButton, TextEdit, Ui, Widget};
+use rmf_site_egui::*;
 
 /// Add a widget for viewing and editing navigation graphs.
 #[derive(Default)]
@@ -36,7 +37,11 @@ pub struct ViewNavGraphsPlugin {}
 
 impl Plugin for ViewNavGraphsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<NavGraphDisplay>();
+        app.init_resource::<NavGraphDisplay>().add_plugins(
+            PropertiesTilePlugin::<ViewNavGraphs>::new()
+                .with_name("Navigation")
+                .in_group(TabGroup::Top),
+        );
     }
 }
 
@@ -70,6 +75,17 @@ pub struct ViewNavGraphs<'w, 's> {
     change_rank: EventWriter<'w, ChangeRank<NavGraphMarker>>,
     selector: SelectorWidget<'w, 's>,
     commands: Commands<'w, 's>,
+    app_state: Res<'w, State<AppState>>,
+}
+
+impl<'w, 's> WidgetSystem<Tile> for ViewNavGraphs<'w, 's> {
+    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
+        let mut params = state.get_mut(world);
+        if *params.app_state.get() != AppState::SiteEditor {
+            return;
+        }
+        params.show_widget(ui);
+    }
 }
 
 impl<'w, 's> ViewNavGraphs<'w, 's> {

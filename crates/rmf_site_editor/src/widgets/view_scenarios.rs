@@ -30,6 +30,7 @@ use bevy::{
 use bevy_egui::egui::{
     Align, Button, CollapsingHeader, Color32, Image, Layout, TextEdit, Ui, Widget,
 };
+use rmf_site_egui::*;
 use std::collections::HashMap;
 
 /// Add a plugin for viewing and editing a list of all levels
@@ -38,7 +39,11 @@ pub struct ViewScenariosPlugin {}
 
 impl Plugin for ViewScenariosPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ScenarioDisplay>();
+        app.init_resource::<ScenarioDisplay>().add_plugins(
+            PropertiesTilePlugin::<ViewScenarios>::new()
+                .with_name("Scenarios")
+                .in_group(TabGroup::Top),
+        );
     }
 }
 
@@ -61,6 +66,13 @@ pub struct ViewScenarios<'w, 's> {
     current_scenario: ResMut<'w, CurrentScenario>,
     current_workspace: Res<'w, CurrentWorkspace>,
     icons: Res<'w, Icons>,
+}
+
+impl<'w, 's> WidgetSystem<Tile> for ViewScenarios<'w, 's> {
+    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
+        let mut params = state.get_mut(world);
+        params.show_widget(ui);
+    }
 }
 
 impl<'w, 's> ViewScenarios<'w, 's> {

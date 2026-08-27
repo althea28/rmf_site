@@ -25,6 +25,7 @@ use crate::{
 };
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_egui::egui::{CollapsingHeader, ImageButton, ScrollArea, Ui};
+use rmf_site_egui::*;
 use rmf_site_format::{InstanceMarker, SiteID};
 use rmf_site_picking::Selection;
 
@@ -33,7 +34,13 @@ use rmf_site_picking::Selection;
 pub struct ViewModelInstancesPlugin {}
 
 impl Plugin for ViewModelInstancesPlugin {
-    fn build(&self, _app: &mut App) {}
+    fn build(&self, app: &mut App) {
+        app.add_plugins(
+            PropertiesTilePlugin::<ViewModelInstances>::new()
+                .with_name("Models")
+                .in_group(TabGroup::Top),
+        );
+    }
 }
 
 #[derive(SystemParam)]
@@ -67,6 +74,13 @@ pub struct ViewModelInstances<'w, 's> {
     selection: Res<'w, Selection>,
     selector: SelectorWidget<'w, 's>,
     delete: EventWriter<'w, Delete>,
+}
+
+impl<'w, 's> WidgetSystem<Tile> for ViewModelInstances<'w, 's> {
+    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
+        let mut params = state.get_mut(world);
+        params.show_widget(ui);
+    }
 }
 
 impl<'w, 's> ViewModelInstances<'w, 's> {

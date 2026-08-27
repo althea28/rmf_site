@@ -37,7 +37,11 @@ pub struct ViewLevelsPlugin {}
 
 impl Plugin for ViewLevelsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LevelDisplay>();
+        app.init_resource::<LevelDisplay>().add_plugins(
+            PropertiesTilePlugin::<ViewLevels>::new()
+                .with_name("Levels")
+                .in_group(TabGroup::Top),
+        );
     }
 }
 
@@ -52,6 +56,13 @@ pub struct ViewLevels<'w, 's> {
     delete: EventWriter<'w, Delete>,
     commands: Commands<'w, 's>,
     app_state: Res<'w, State<AppState>>,
+}
+
+impl<'w, 's> WidgetSystem<Tile> for ViewLevels<'w, 's> {
+    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
+        let mut params = state.get_mut(world);
+        params.show_widget(ui);
+    }
 }
 
 impl<'w, 's> ViewLevels<'w, 's> {

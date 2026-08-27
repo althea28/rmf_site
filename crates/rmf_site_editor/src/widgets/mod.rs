@@ -154,9 +154,7 @@ impl Plugin for StandardPropertiesPanelPlugin {
             ViewGroupsPlugin::default(),
             ViewLightsPlugin::default(),
             BuildingPreviewPlugin::default(),
-        ))
-        .init_resource::<PropertiesPanelState>()
-        .init_resource::<PropertiesTabStates>();
+        ));
 
         let properties_panel_id = app.world().resource::<PropertiesPanel>().id();
         let panel_widget = PanelWidget::new(show_properties_panel, app.world_mut());

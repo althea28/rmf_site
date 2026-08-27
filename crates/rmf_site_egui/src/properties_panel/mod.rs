@@ -16,15 +16,36 @@
 */
 
 use bevy_app::prelude::*;
+use bevy_ecs::name::Name;
+use bevy_ecs::prelude::Component;
 
 use crate::*;
+
+/// Group classification for tabs into top vs bottom dock regions on startup.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TabGroup {
+    Top,
+    #[default]
+    Bottom,
+}
 
 /// Use this plugin to add a single tile into the properties panel.
 pub struct PropertiesTilePlugin<W>
 where
     W: WidgetSystem<Tile> + 'static + Send + Sync,
 {
+    name: Option<String>,
+    group: TabGroup,
     _ignore: std::marker::PhantomData<W>,
+}
+
+impl<W> Default for PropertiesTilePlugin<W>
+where
+    W: WidgetSystem<Tile> + 'static + Send + Sync,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<W> PropertiesTilePlugin<W>
@@ -33,8 +54,20 @@ where
 {
     pub fn new() -> Self {
         Self {
+            name: None,
+            group: TabGroup::default(),
             _ignore: Default::default(),
         }
+    }
+
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    pub fn in_group(mut self, group: TabGroup) -> Self {
+        self.group = group;
+        self
     }
 }
 
@@ -45,9 +78,12 @@ where
     fn build(&self, app: &mut App) {
         let widget = Widget::<Tile>::new::<W>(app.world_mut());
         let properties_panel = app.world().resource::<PropertiesPanel>().id;
-        app.world_mut()
-            .spawn(widget)
-            .insert(ChildOf(properties_panel));
+        let mut entity = app.world_mut().spawn(widget);
+        entity.insert(ChildOf(properties_panel));
+        entity.insert(self.group);
+        if let Some(name) = &self.name {
+            entity.insert(Name::new(name.clone()));
+        }
     }
 }
 

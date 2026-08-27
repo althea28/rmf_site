@@ -22,12 +22,15 @@ use crate::{
 };
 use bevy::prelude::*;
 use bevy_egui::egui::{Button, Ui};
+use rmf_site_egui::*;
 
 #[derive(Default)]
 pub struct BuildingPreviewPlugin {}
 
 impl Plugin for BuildingPreviewPlugin {
-    fn build(&self, _app: &mut App) {}
+    fn build(&self, app: &mut App) {
+        app.add_plugins(PropertiesTilePlugin::<BuildingPreview>::new().with_name("Preview"));
+    }
 }
 
 #[derive(SystemParam)]
@@ -40,18 +43,19 @@ pub struct BuildingPreview<'w> {
     finish_edit_drawing: EventWriter<'w, FinishEditDrawing>,
 }
 
-impl<'w> BuildingPreview<'w> {
-    pub fn show_widget(&mut self, ui: &mut Ui) {
-        if *self.app_state == AppState::SiteEditor {
+impl<'w> WidgetSystem<Tile> for BuildingPreview<'w> {
+    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
+        let mut params = state.get_mut(world);
+        if *params.app_state == AppState::SiteEditor {
             if ui.add(Button::new("Building preview")).clicked() {
-                self.next_app_state.set(AppState::SiteVisualizer);
+                params.next_app_state.set(AppState::SiteVisualizer);
             }
         }
 
-        if *self.app_state == AppState::SiteVisualizer {
+        if *params.app_state == AppState::SiteVisualizer {
             if ui
                 .add(Button::image_and_text(
-                    self.icons.alignment.egui(),
+                    params.icons.alignment.egui(),
                     "Align Drawings",
                 ))
                 .on_hover_text(
@@ -59,31 +63,31 @@ impl<'w> BuildingPreview<'w> {
                 )
                 .clicked()
             {
-                if let Some(site) = self.current_workspace.root {
-                    self.align_site.write(AlignSiteDrawings(site));
+                if let Some(site) = params.current_workspace.root {
+                    params.align_site.write(AlignSiteDrawings(site));
                 }
             }
 
             if ui
                 .add(Button::image_and_text(
-                    self.icons.exit.egui(),
+                    params.icons.exit.egui(),
                     "Return to site editor",
                 ))
                 .clicked()
             {
-                self.next_app_state.set(AppState::SiteEditor);
+                params.next_app_state.set(AppState::SiteEditor);
             }
         }
 
-        if *self.app_state == AppState::SiteDrawingEditor {
+        if *params.app_state == AppState::SiteDrawingEditor {
             if ui
                 .add(Button::image_and_text(
-                    self.icons.exit.egui(),
+                    params.icons.exit.egui(),
                     "Return to site editor",
                 ))
                 .clicked()
             {
-                self.finish_edit_drawing.write(FinishEditDrawing(None));
+                params.finish_edit_drawing.write(FinishEditDrawing(None));
             }
         }
     }
