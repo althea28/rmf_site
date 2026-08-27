@@ -102,7 +102,7 @@ pub fn show_properties_panel(
 
     world.resource_scope::<PropertiesPanelState, ()>(|world, mut state| {
         let is_initial_load = state.known_tabs.is_empty();
-        
+
         let mut new_tabs = Vec::new();
         for tab in &tabs {
             let title = world.get::<Name>(*tab).unwrap();

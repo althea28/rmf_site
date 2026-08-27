@@ -357,7 +357,7 @@ impl<'w, 's> WidgetSystem<Tile> for Inspector<'w, 's> {
             ui.label("ERROR: Selection resource is not available");
             return;
         };
-        
+
         // Add prompts when no entity is selected to prevent tab from looking broken
         if selection.selected.is_empty() {
             ui.vertical_centered(|ui| {
@@ -373,8 +373,7 @@ impl<'w, 's> WidgetSystem<Tile> for Inspector<'w, 's> {
         }
 
         if selection.selected.len() > 1 {
-            let instances: SmallVec<[Entity; 16]> =
-                selection.selected.iter().cloned().collect();
+            let instances: SmallVec<[Entity; 16]> = selection.selected.iter().cloned().collect();
 
             let mut inspect_multi_selection = state.get_mut(world).inspect_multi_selection;
             inspect_multi_selection.show_widget(instances, ui);
@@ -393,15 +392,14 @@ impl<'w, 's> WidgetSystem<Tile> for Inspector<'w, 's> {
 
         let params = state.get_mut(world);
 
-        let (label, site_id) =
-            if let Ok((category, site_id)) = params.heading.get(selection) {
-                (
-                    category.map(|x| x.label()).unwrap_or("<Unknown Type>"),
-                    site_id,
-                )
-            } else {
-                ("<Unknown Type>", None)
-            };
+        let (label, site_id) = if let Ok((category, site_id)) = params.heading.get(selection) {
+            (
+                category.map(|x| x.label()).unwrap_or("<Unknown Type>"),
+                site_id,
+            )
+        } else {
+            ("<Unknown Type>", None)
+        };
 
         if let Some(site_id) = site_id {
             ui.heading(format!("{} #{}", label, site_id.0));
