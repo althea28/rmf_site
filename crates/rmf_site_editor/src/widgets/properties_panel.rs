@@ -25,6 +25,9 @@ use rmf_site_egui::{
     PanelConfig, PanelSettings, PanelWidgetInput, TabGroup, Tile, TryShowWidgetWorld,
 };
 
+const TAB_BAR_HEIGHT: f32 = 24.0;
+const CLOSE_TAB_ACTIVE_COLOR: egui::Color32 = egui::Color32::from_rgb(240, 80, 80);
+
 #[derive(Resource)]
 pub struct PropertiesPanelState {
     pub dock_state: DockState<Entity>,
@@ -56,6 +59,10 @@ impl<'a> TabViewer for PropertiesTabViewer<'a> {
         if let Some(name) = self.world.get::<Name>(*tab) {
             name.as_str().into()
         } else {
+            bevy::log::warn!(
+                "Properties panel tab entity {:?} is missing a Name component",
+                tab
+            );
             format!("Tab {:?}", tab).into()
         }
     }
@@ -105,8 +112,6 @@ pub fn show_properties_panel(
 
         let mut new_tabs = Vec::new();
         for tab in &tabs {
-            let title = world.get::<Name>(*tab).unwrap();
-            let group = world.get::<TabGroup>(*tab).copied().unwrap_or_default();
             if state.known_tabs.insert(*tab) {
                 new_tabs.push(*tab);
             }
@@ -164,8 +169,8 @@ pub fn show_properties_panel(
         let mut style = Style::from_egui(context.style().as_ref());
         style.tab_bar.show_scroll_bar_on_overflow = true;
         style.tab_bar.fill_tab_bar = false;
-        style.tab_bar.height = 24.0;
-        style.buttons.close_tab_active_color = egui::Color32::from_rgb(240, 80, 80);
+        style.tab_bar.height = TAB_BAR_HEIGHT;
+        style.buttons.close_tab_active_color = CLOSE_TAB_ACTIVE_COLOR;
 
         let config = world.get::<PanelConfig>(id).copied().unwrap_or_default();
         egui::SidePanel::right("properties_panel")

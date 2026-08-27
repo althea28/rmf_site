@@ -37,11 +37,8 @@ pub struct ViewLevelsPlugin {}
 
 impl Plugin for ViewLevelsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LevelDisplay>().add_plugins(
-            PropertiesTilePlugin::<ViewLevels>::new()
-                .with_name("Levels")
-                .in_group(TabGroup::Top),
-        );
+        app.init_resource::<LevelDisplay>()
+            .add_plugins(PropertiesTilePlugin::<ViewLevels>::new("Levels").in_group(TabGroup::Top));
     }
 }
 

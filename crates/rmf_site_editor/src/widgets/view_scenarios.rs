@@ -40,9 +40,7 @@ pub struct ViewScenariosPlugin {}
 impl Plugin for ViewScenariosPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ScenarioDisplay>().add_plugins(
-            PropertiesTilePlugin::<ViewScenarios>::new()
-                .with_name("Scenarios")
-                .in_group(TabGroup::Top),
+            PropertiesTilePlugin::<ViewScenarios>::new("Scenarios").in_group(TabGroup::Top),
         );
     }
 }

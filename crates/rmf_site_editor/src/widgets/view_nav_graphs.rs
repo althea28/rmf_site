@@ -38,9 +38,7 @@ pub struct ViewNavGraphsPlugin {}
 impl Plugin for ViewNavGraphsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<NavGraphDisplay>().add_plugins(
-            PropertiesTilePlugin::<ViewNavGraphs>::new()
-                .with_name("Navigation")
-                .in_group(TabGroup::Top),
+            PropertiesTilePlugin::<ViewNavGraphs>::new("Navigation").in_group(TabGroup::Top),
         );
     }
 }

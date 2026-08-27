@@ -49,7 +49,7 @@ pub struct ViewLightsPlugin {}
 impl Plugin for ViewLightsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LightDisplay>()
-            .add_plugins(PropertiesTilePlugin::<ViewLights>::new().with_name("Lights"));
+            .add_plugins(PropertiesTilePlugin::<ViewLights>::new("Lights"));
     }
 }
 

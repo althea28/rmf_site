@@ -39,7 +39,7 @@ pub struct ViewGroupsPlugin {}
 impl Plugin for ViewGroupsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GroupViewModes>()
-            .add_plugins(PropertiesTilePlugin::<ViewGroups>::new().with_name("Groups"));
+            .add_plugins(PropertiesTilePlugin::<ViewGroups>::new("Groups"));
     }
 }
 

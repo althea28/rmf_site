@@ -36,7 +36,7 @@ pub struct ViewLayersPlugin {}
 
 impl Plugin for ViewLayersPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(PropertiesTilePlugin::<ViewLayers>::new().with_name("Layers"));
+        app.add_plugins(PropertiesTilePlugin::<ViewLayers>::new("Layers"));
     }
 }
 

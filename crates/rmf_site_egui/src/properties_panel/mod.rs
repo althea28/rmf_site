@@ -34,35 +34,21 @@ pub struct PropertiesTilePlugin<W>
 where
     W: WidgetSystem<Tile> + 'static + Send + Sync,
 {
-    name: Option<String>,
+    name: String,
     group: TabGroup,
     _ignore: std::marker::PhantomData<W>,
-}
-
-impl<W> Default for PropertiesTilePlugin<W>
-where
-    W: WidgetSystem<Tile> + 'static + Send + Sync,
-{
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl<W> PropertiesTilePlugin<W>
 where
     W: WidgetSystem<Tile> + 'static + Send + Sync,
 {
-    pub fn new() -> Self {
+    pub fn new(name: impl Into<String>) -> Self {
         Self {
-            name: None,
+            name: name.into(),
             group: TabGroup::default(),
             _ignore: Default::default(),
         }
-    }
-
-    pub fn with_name(mut self, name: impl Into<String>) -> Self {
-        self.name = Some(name.into());
-        self
     }
 
     pub fn in_group(mut self, group: TabGroup) -> Self {
@@ -81,9 +67,7 @@ where
         let mut entity = app.world_mut().spawn(widget);
         entity.insert(ChildOf(properties_panel));
         entity.insert(self.group);
-        if let Some(name) = &self.name {
-            entity.insert(Name::new(name.clone()));
-        }
+        entity.insert(Name::new(self.name.clone()));
     }
 }
 
