@@ -66,6 +66,9 @@ use site_asset_io::SiteAssetIoPlugin;
 pub mod mapf_rse;
 use mapf_rse::NegotiationPlugin;
 
+pub mod live_visualization;
+use live_visualization::LiveVisualizationPlugin;
+
 pub mod osm_slippy_map;
 use bevy::render::{
     batching::gpu_preprocessing::{GpuPreprocessingMode, GpuPreprocessingSupport},
@@ -298,6 +301,7 @@ impl Plugin for SiteEditor {
                 WorkspacePlugin,
                 IssuePlugin,
                 crossflow::CrossflowPlugin::default(),
+                LiveVisualizationPlugin,
             ));
 
         #[cfg(not(target_arch = "wasm32"))]

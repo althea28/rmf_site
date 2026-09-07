@@ -5,3 +5,6 @@ web/rmf_site_editor_web_bg.wasm
 web/rmf_site_editor_web_bg_optimized.wasm
 web/rmf_site_editor_web_bg.wasm.d.ts
 /test_output/
+
+# Dynamically downloaded ROS 2 standard messages
+external/ros2_interfaces/

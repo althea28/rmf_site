@@ -1,0 +1,11 @@
+[package]
+name = "rmf_site_msgs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+roslibrust = { workspace = true, features = ["codegen"] }
+
+[build-dependencies]
+roslibrust_codegen = { workspace = true }

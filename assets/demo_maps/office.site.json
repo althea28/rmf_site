@@ -3651,7 +3651,7 @@
     },
     "161": {
       "parent": 1,
-      "name": "tinyRobot1",
+      "name": "robot_1",
       "pose": {
         "trans": [
           10.433054,
@@ -3668,7 +3668,7 @@
     },
     "162": {
       "parent": 1,
-      "name": "tinyRobot2",
+      "name": "robot_2",
       "pose": {
         "trans": [
           20.423693,
