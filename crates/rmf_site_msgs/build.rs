@@ -1,7 +1,35 @@
 use roslibrust_codegen::find_and_generate_ros_messages_without_ros_package_path;
+use std::fs;
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 
 fn main() {
+    // Fetch standard messages via VCS
+    let ros2_interfaces_dir = PathBuf::from("../../external/ros2_interfaces");
+    let repos_file_path = PathBuf::from("../../ros2_interfaces.repos");
+
+    if !ros2_interfaces_dir.join("common_interfaces").exists() {
+        println!("cargo:warning=Standard ROS 2 messages not found. Automatically running 'vcs import'...");
+
+        // Ensure external folder exists
+        fs::create_dir_all(&ros2_interfaces_dir).unwrap();
+
+        // Open the manifest file to pipe into the vcs command
+        let repos_file = fs::File::open(&repos_file_path)
+            .expect("Failed to open ros2_interfaces.repos file");
+
+        let status = Command::new("vcs")
+            .arg("import")
+            .arg(&ros2_interfaces_dir)
+            .stdin(Stdio::from(repos_file))
+            .status()
+            .expect("Failed to execute 'vcs' command. Please ensure vcstool is installed.");
+
+        if !status.success() {
+            panic!("'vcs import' failed to download the standard ROS 2 messages.");
+        }
+    }
+
     // Define search paths to .msg files
     let search_paths = vec![
         // Custom Open-RMF Messages
