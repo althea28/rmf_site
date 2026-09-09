@@ -301,7 +301,6 @@ impl Plugin for SiteEditor {
                 WorkspacePlugin,
                 IssuePlugin,
                 crossflow::CrossflowPlugin::default(),
-                LiveVisualizationPlugin,
             ));
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -327,7 +326,8 @@ impl Plugin for SiteEditor {
             app.add_plugins((StandardUiPlugin::default(), MainMenuPlugin))
                 // Note order matters, plugins that edit the menus must be initialized after the UI
                 .add_plugins((site::ViewMenuPlugin, OSMViewPlugin, SiteWireframePlugin))
-                .add_plugins(NegotiationPlugin::default());
+                .add_plugins(NegotiationPlugin::default())
+                .add_plugins(LiveVisualizationPlugin);
         }
 
         if self.is_headless_export() {
