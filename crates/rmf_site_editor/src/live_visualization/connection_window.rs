@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::network_client::{start_rosbridge_subscriber, NetworkSenders, StreamChannel};
-use super::planned_paths::LiveEventPlan;
+use super::planned_paths::{LiveEventPlan, LiveEventProgress};
 use super::robot_odometry::LiveEventOdom;
 use crate::workspace::CurrentWorkspace;
 
@@ -32,6 +32,7 @@ pub fn draw_live_stream_button(
     state: &mut LiveStreamState,
     odom_channel: &StreamChannel<LiveEventOdom>,
     plan_channel: &StreamChannel<LiveEventPlan>,
+    prog_channel: &StreamChannel<LiveEventProgress>,
 ) {
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         if state.is_connected {
@@ -51,6 +52,7 @@ pub fn draw_live_stream_button(
                 let senders = NetworkSenders {
                     odom: odom_channel.sender.clone(),
                     plan: plan_channel.sender.clone(),
+                    progress: prog_channel.sender.clone(),
                 };
 
                 start_rosbridge_subscriber(
@@ -68,6 +70,7 @@ pub struct LiveStreamButton<'w> {
     state: ResMut<'w, LiveStreamState>,
     odom_channel: Res<'w, StreamChannel<LiveEventOdom>>,
     plan_channel: Res<'w, StreamChannel<LiveEventPlan>>,
+    prog_channel: Res<'w, StreamChannel<LiveEventProgress>>,
     workspace: Option<Res<'w, CurrentWorkspace>>,
 }
 
@@ -88,6 +91,7 @@ impl<'w> WidgetSystem<Tile> for LiveStreamButton<'w> {
             &mut params.state,
             &params.odom_channel,
             &params.plan_channel,
+            &params.prog_channel,
         );
     }
 }

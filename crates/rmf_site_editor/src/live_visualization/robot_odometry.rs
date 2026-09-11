@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use rmf_site_format::NameInSite;
 
+use super::connection_window::LiveStreamState;
 use super::network_client::StreamChannel;
 
 #[derive(Debug, Clone)]
@@ -20,6 +21,7 @@ pub struct LiveRobotMarker {
 }
 
 pub fn update_live_robots(
+    state: Res<LiveStreamState>,
     channel: Res<StreamChannel<LiveEventOdom>>,
     time: Res<Time>,
     mut commands: Commands,
@@ -29,6 +31,10 @@ pub fn update_live_robots(
         Without<LiveRobotMarker>,
     >,
 ) {
+    if !state.is_connected {
+        return;
+    }
+
     // Wait for message from channel receiver
     while let Ok(event) = channel.receiver.try_recv() {
         let target_pos = Vec3::new(event.x, event.y, event.z);

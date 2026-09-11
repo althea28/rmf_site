@@ -7,10 +7,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use rmf_site_msgs::nav_msgs::msg::Odometry;
-use rmf_site_msgs::rmf_prototype_msgs::msg::{ParticipantList, Plan};
+use rmf_site_msgs::rmf_prototype_msgs::msg::{ParticipantList, Plan, Progress};
 use roslibrust::rosbridge::ClientHandle;
 
-use super::planned_paths::LiveEventPlan;
+use super::planned_paths::{LiveEventPlan, LiveEventProgress};
 use super::robot_odometry::LiveEventOdom;
 
 #[derive(Resource)]
@@ -23,6 +23,7 @@ pub struct StreamChannel<T> {
 pub struct NetworkSenders {
     pub odom: Sender<LiveEventOdom>,
     pub plan: Sender<LiveEventPlan>,
+    pub progress: Sender<LiveEventProgress>,
 }
 
 pub fn start_rosbridge_subscriber(
@@ -168,6 +169,39 @@ async fn run_rosbridge_loop(url: String, senders: NetworkSenders, connect_flag: 
 
                     #[cfg(target_arch = "wasm32")]
                     IoTaskPool::get().spawn(plan_task).detach();
+
+                    let progress_client = client.clone();
+                    let progress_sender = senders.progress.clone();
+                    let progress_cancel = connect_flag.clone();
+                    let robot_name_prog = p.name.clone();
+                    let progress_topic = format!("/{}/plan/progress", p.name);
+
+                    println!("Subscribed to progress: {}", progress_topic);
+
+                    let progress_task = async move {
+                        if let Ok(prog_sub) =
+                            progress_client.subscribe::<Progress>(&progress_topic).await
+                        {
+                            loop {
+                                let prog_msg = prog_sub.next().await;
+
+                                if !progress_cancel.load(Ordering::Relaxed) {
+                                    break;
+                                }
+
+                                let _ = progress_sender.send(LiveEventProgress {
+                                    name: robot_name_prog.clone(),
+                                    target_waypoint: prog_msg.target_waypoint as usize,
+                                });
+                            }
+                        }
+                    };
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    tokio::spawn(progress_task);
+
+                    #[cfg(target_arch = "wasm32")]
+                    IoTaskPool::get().spawn(progress_task).detach();
                 }
             }
         }
