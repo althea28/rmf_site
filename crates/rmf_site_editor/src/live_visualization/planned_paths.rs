@@ -97,29 +97,6 @@ pub fn update_live_paths(
 
         if let Some(start_pos) = robot_pos {
             let mut target_idx = path_marker.target_waypoint;
-            // If the network hasn't given us a Progress update (still at default 1),
-            // we dynamically infer the robot's progress by finding the closest waypoint.
-            if target_idx <= 1 && path_marker.waypoints.len() > 1 {
-                let mut min_dist = f32::MAX;
-                let mut closest_idx = 0;
-
-                for (i, wp) in path_marker.waypoints.iter().enumerate() {
-                    let dist = start_pos.distance(*wp);
-                    if dist < min_dist {
-                        min_dist = dist;
-                        closest_idx = i;
-                    }
-                }
-
-                // If the closest waypoint is the absolute last dot on the path, it has arrived!
-                if closest_idx == path_marker.waypoints.len() - 1 {
-                    continue; // Skip rendering this path entirely
-                }
-
-                // Otherwise, assume the robot is heading to the waypoint *after* the closest one
-                target_idx = closest_idx + 1;
-            }
-
             let final_target_idx = target_idx.min(path_marker.waypoints.len().saturating_sub(1));
 
             if final_target_idx < path_marker.waypoints.len() {
