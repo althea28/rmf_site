@@ -6055,9 +6055,11 @@ dependencies = [
 name = "rmf_site_msgs"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "roslibrust",
  "roslibrust_codegen",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

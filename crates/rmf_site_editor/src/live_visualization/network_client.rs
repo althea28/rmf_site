@@ -7,9 +7,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use rmf_site_msgs::nav_msgs::msg::Odometry;
-use rmf_site_msgs::rmf_prototype_msgs::msg::ParticipantList;
+use rmf_site_msgs::rmf_prototype_msgs::msg::{ParticipantList, Plan};
 use roslibrust::rosbridge::ClientHandle;
 
+use super::planned_paths::LiveEventPlan;
 use super::robot_odometry::LiveEventOdom;
 
 #[derive(Resource)]
@@ -21,7 +22,7 @@ pub struct StreamChannel<T> {
 #[derive(Clone)]
 pub struct NetworkSenders {
     pub odom: Sender<LiveEventOdom>,
-    // Add other data to stream here
+    pub plan: Sender<LiveEventPlan>,
 }
 
 pub fn start_rosbridge_subscriber(
@@ -60,11 +61,7 @@ pub fn start_rosbridge_subscriber(
     }
 }
 
-async fn run_rosbridge_loop(
-    url: String,
-    senders: NetworkSenders,
-    connect_flag: Arc<AtomicBool>,
-) {
+async fn run_rosbridge_loop(url: String, senders: NetworkSenders, connect_flag: Arc<AtomicBool>) {
     if let Ok(client) = ClientHandle::new(&url).await {
         println!("Successfully connected to {}", url);
 
@@ -134,6 +131,43 @@ async fn run_rosbridge_loop(
 
                     #[cfg(target_arch = "wasm32")]
                     IoTaskPool::get().spawn(odom_task).detach();
+
+                    let plan_client = client.clone();
+                    let plan_sender = senders.plan.clone();
+                    let plan_cancel = connect_flag.clone();
+                    let robot_name_plan = p.name.clone();
+                    let plan_topic = format!("/{}/plan", p.name);
+
+                    println!("Subscribed to plan: {}", plan_topic);
+
+                    let plan_task = async move {
+                        if let Ok(plan_sub) = plan_client.subscribe::<Plan>(&plan_topic).await {
+                            loop {
+                                let plan_msg = plan_sub.next().await;
+
+                                if !plan_cancel.load(Ordering::Relaxed) {
+                                    break;
+                                }
+
+                                let waypoints: Vec<Vec3> = plan_msg
+                                    .waypoints
+                                    .iter()
+                                    .map(|wp| Vec3::new(wp.position[0], wp.position[1], 0.05))
+                                    .collect();
+
+                                let _ = plan_sender.send(LiveEventPlan {
+                                    name: robot_name_plan.clone(),
+                                    waypoints,
+                                });
+                            }
+                        }
+                    };
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    tokio::spawn(plan_task);
+
+                    #[cfg(target_arch = "wasm32")]
+                    IoTaskPool::get().spawn(plan_task).detach();
                 }
             }
         }
