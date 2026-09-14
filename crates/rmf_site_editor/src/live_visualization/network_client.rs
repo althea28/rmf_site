@@ -7,10 +7,10 @@ use std::sync::Arc;
 use rmf_site_msgs::rmf_prototype_msgs::msg::ParticipantList;
 use roslibrust::rosbridge::ClientHandle;
 
+use super::odometry::{handle_odometry_stream, LiveEventOdom};
 use super::planned_paths::{
     handle_plan_stream, handle_progress_stream, LiveEventPlan, LiveEventProgress,
 };
-use super::robot_odometry::{handle_odometry_stream, LiveEventOdom};
 
 #[derive(Resource)]
 pub struct StreamChannel<T> {
@@ -65,7 +65,7 @@ pub fn start_rosbridge_subscriber(
 
 async fn run_rosbridge_loop(url: String, senders: NetworkSenders, connect_flag: Arc<AtomicBool>) {
     if let Ok(client) = ClientHandle::new(&url).await {
-        info!("Successfully connected via roslibrust to {}", url);
+        info!("Connected via roslibrust to {}", url);
 
         if let Ok(discovery_sub) = client
             .subscribe::<ParticipantList>("/destination/discovery")
@@ -87,7 +87,7 @@ async fn run_rosbridge_loop(url: String, senders: NetworkSenders, connect_flag: 
                     }
                     subscribed_robots.insert(p.name.clone());
 
-                    println!("Dynamically discovering and subscribing to: {}", p.name);
+                    println!("Subscribing to: {}", p.name);
 
                     spawn_network_task(handle_odometry_stream(
                         p.name.clone(),

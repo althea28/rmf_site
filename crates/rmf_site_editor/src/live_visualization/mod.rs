@@ -1,7 +1,7 @@
 pub mod connection_window;
 pub mod network_client;
+pub mod odometry;
 pub mod planned_paths;
-pub mod robot_odometry;
 
 use bevy::prelude::*;
 use crossbeam_channel::unbounded;
@@ -9,8 +9,8 @@ use rmf_site_egui::{HeaderPanel, HeaderTilePlugin};
 
 use connection_window::{LiveStreamButton, LiveStreamState};
 use network_client::StreamChannel;
+use odometry::{update_live_robots, LiveEventOdom, LiveRobotsMap};
 use planned_paths::{update_live_paths, LiveEventPlan, LiveEventProgress, LivePathsState};
-use robot_odometry::{update_live_robots, LiveEventOdom, LiveRobotsMap};
 
 pub struct LiveVisualizationPlugin;
 

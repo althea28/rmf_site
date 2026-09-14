@@ -6,8 +6,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::network_client::{start_rosbridge_subscriber, NetworkSenders, StreamChannel};
+use super::odometry::LiveEventOdom;
 use super::planned_paths::{LiveEventPlan, LiveEventProgress};
-use super::robot_odometry::LiveEventOdom;
 use crate::workspace::CurrentWorkspace;
 
 pub const DEFAULT_CONNECTION_URL: &str = "ws://127.0.0.1:9090";

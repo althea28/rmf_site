@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use super::connection_window::LiveStreamState;
 use super::network_client::StreamChannel;
-use super::robot_odometry::{LiveRobotMarker, LiveRobotsMap};
+use super::odometry::{LiveRobotMarker, LiveRobotsMap};
 
 pub const PLANNED_PATH_Z_OFFSET: f32 = 0.05;
 pub const PLANNED_PATH_COLOR: Color = Color::srgb(0.0, 1.0, 0.0);
@@ -57,10 +57,15 @@ pub fn update_live_paths(
             });
 
         if robot_path.waypoints != event.waypoints {
-            let was_empty = robot_path.waypoints.is_empty();
+            // Check if this is a detour/new path
+            let has_existing_path = !robot_path.waypoints.is_empty();
             robot_path.waypoints = event.waypoints;
 
-            if !was_empty {
+            // If the robot already had a path, this is a brand new detour.
+            // Target is reset to the beginning of the new path.
+            // If it did not have an existing path, the Progress message arrived
+            // first, so the target_waypoint is left alone.
+            if has_existing_path {
                 robot_path.target_waypoint = 1;
             }
         }
@@ -98,6 +103,7 @@ pub fn update_live_paths(
                 .target_waypoint
                 .min(path_data.waypoints.len().saturating_sub(1));
 
+            // Draw line from robot's current position to the target waypoint, then along the path to the final waypoint.
             if final_target_idx < path_data.waypoints.len() {
                 let mut points_to_draw = vec![start_pos];
                 points_to_draw.extend_from_slice(&path_data.waypoints[final_target_idx..]);
