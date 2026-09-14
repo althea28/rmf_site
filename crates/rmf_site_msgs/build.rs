@@ -61,11 +61,7 @@ fn main() {
     // Name of the file in out_dir we want to write our generated code to
     let dest_path = PathBuf::from(out_dir).join("messages.rs");
     // Write the generated code to disk
-    let code = source.to_string().replace(
-        "pub r#uuid : [u8 ; 16] ,",
-        "#[serde(deserialize_with = \"crate::deserialize_uuid_fixed_16\")] pub r#uuid : [u8 ; 16] ,",
-    );
-    std::fs::write(&dest_path, code).unwrap();
+    std::fs::write(&dest_path, source.to_string()).unwrap();
 
     // Tell cargo to re-run our build script ONLY if these specific .msg files change
     for path in &dependent_paths {
