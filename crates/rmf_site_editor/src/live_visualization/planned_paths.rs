@@ -25,67 +25,65 @@ pub struct LiveEventProgress {
     pub target_waypoint: usize,
 }
 
-#[derive(Component)]
-pub struct LivePathMarker {
-    pub name: String,
+#[derive(Default, Resource)]
+pub struct LivePathsState(pub HashMap<String, RobotPathData>);
+
+pub struct RobotPathData {
     pub waypoints: Vec<Vec3>,
     pub target_waypoint: usize,
 }
-
-#[derive(Default, Resource)]
-pub struct LivePathsMap(pub HashMap<String, Entity>);
 
 pub fn update_live_paths(
     state: Res<LiveStreamState>,
     plan_channel: Res<StreamChannel<LiveEventPlan>>,
     progress_channel: Res<StreamChannel<LiveEventProgress>>,
-    mut commands: Commands,
-    mut path_map: ResMut<LivePathsMap>,
+    mut path_state: ResMut<LivePathsState>,
     robot_map: Res<LiveRobotsMap>,
-    mut path_query: Query<&mut LivePathMarker>,
     robot_query: Query<&Transform, With<LiveRobotMarker>>,
     mut gizmos: Gizmos,
 ) {
     if !state.is_connected {
+        path_state.0.clear();
         return;
     }
 
     while let Ok(event) = plan_channel.receiver.try_recv() {
-        if let Some(&path_entity) = path_map.0.get(&event.name) {
-            if let Ok(mut path_marker) = path_query.get_mut(path_entity) {
-                path_marker.waypoints = event.waypoints;
-                path_marker.target_waypoint = 1;
-                continue;
-            } else {
-                path_map.0.remove(&event.name);
+        let robot_path = path_state
+            .0
+            .entry(event.name.clone())
+            .or_insert(RobotPathData {
+                waypoints: Vec::new(),
+                target_waypoint: 1,
+            });
+
+        if robot_path.waypoints != event.waypoints {
+            let was_empty = robot_path.waypoints.is_empty();
+            robot_path.waypoints = event.waypoints;
+
+            if !was_empty {
+                robot_path.target_waypoint = 1;
             }
         }
-
-        let path_entity = commands
-            .spawn(LivePathMarker {
-                name: event.name.clone(),
-                waypoints: event.waypoints,
-                target_waypoint: 1,
-            })
-            .id();
-        path_map.0.insert(event.name, path_entity);
     }
 
     while let Ok(event) = progress_channel.receiver.try_recv() {
-        if let Some(&path_entity) = path_map.0.get(&event.name) {
-            if let Ok(mut path_marker) = path_query.get_mut(path_entity) {
-                path_marker.target_waypoint = event.target_waypoint;
-            }
-        }
+        let robot_path = path_state
+            .0
+            .entry(event.name.clone())
+            .or_insert(RobotPathData {
+                waypoints: Vec::new(),
+                target_waypoint: event.target_waypoint,
+            });
+        robot_path.target_waypoint = event.target_waypoint;
     }
 
-    for path_marker in path_query.iter() {
-        if path_marker.waypoints.is_empty() {
+    for (name, path_data) in path_state.0.iter() {
+        if path_data.waypoints.is_empty() {
             continue;
         }
 
         let mut robot_pos = None;
-        if let Some(&robot_entity) = robot_map.0.get(&path_marker.name) {
+        if let Some(&robot_entity) = robot_map.0.get(name) {
             if let Ok(transform) = robot_query.get(robot_entity) {
                 robot_pos = Some(Vec3::new(
                     transform.translation.x,
@@ -96,13 +94,13 @@ pub fn update_live_paths(
         }
 
         if let Some(start_pos) = robot_pos {
-            let mut target_idx = path_marker.target_waypoint;
-            let final_target_idx = target_idx.min(path_marker.waypoints.len().saturating_sub(1));
+            let final_target_idx = path_data
+                .target_waypoint
+                .min(path_data.waypoints.len().saturating_sub(1));
 
-            if final_target_idx < path_marker.waypoints.len() {
+            if final_target_idx < path_data.waypoints.len() {
                 let mut points_to_draw = vec![start_pos];
-
-                points_to_draw.extend_from_slice(&path_marker.waypoints[final_target_idx..]);
+                points_to_draw.extend_from_slice(&path_data.waypoints[final_target_idx..]);
 
                 if points_to_draw.len() > 1 {
                     gizmos.linestrip(points_to_draw, PLANNED_PATH_COLOR);

@@ -9,7 +9,7 @@ use rmf_site_egui::{HeaderPanel, HeaderTilePlugin};
 
 use connection_window::{LiveStreamButton, LiveStreamState};
 use network_client::StreamChannel;
-use planned_paths::{update_live_paths, LiveEventPlan, LiveEventProgress, LivePathsMap};
+use planned_paths::{update_live_paths, LiveEventPlan, LiveEventProgress, LivePathsState};
 use robot_odometry::{update_live_robots, LiveEventOdom, LiveRobotsMap};
 
 pub struct LiveVisualizationPlugin;
@@ -34,7 +34,7 @@ impl Plugin for LiveVisualizationPlugin {
         })
         .init_resource::<LiveStreamState>()
         .init_resource::<LiveRobotsMap>()
-        .init_resource::<LivePathsMap>()
+        .init_resource::<LivePathsState>()
         .add_systems(Update, (update_live_robots, update_live_paths));
 
         if app.world().get_resource::<HeaderPanel>().is_some() {
