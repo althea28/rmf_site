@@ -20,6 +20,7 @@ use bevy_egui::egui::{self, Ui, WidgetText};
 use egui_dock::{DockArea, DockState, Style, TabViewer};
 use std::collections::HashSet;
 
+use crate::live_visualization::connection_window::LiveStreamState;
 use crate::AppState;
 use rmf_site_egui::{
     PanelConfig, PanelSettings, PanelWidgetInput, TabGroup, Tile, TryShowWidgetWorld,
@@ -46,6 +47,7 @@ impl Default for PropertiesPanelState {
 pub struct PropertiesTabViewer<'a> {
     pub world: &'a mut World,
     pub settings: PanelSettings,
+    pub is_connected: bool,
 }
 
 impl<'a> TabViewer for PropertiesTabViewer<'a> {
@@ -72,6 +74,10 @@ impl<'a> TabViewer for PropertiesTabViewer<'a> {
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Self::Tab) {
+        if self.is_connected {
+            ui.disable();
+        }
+
         let _ = self.world.try_show_in(
             *tab,
             Tile {
@@ -227,7 +233,15 @@ pub fn show_properties_panel(
                     .get::<PanelSettings>(id)
                     .copied()
                     .unwrap_or(PanelSettings::right());
-                let mut tab_viewer = PropertiesTabViewer { world, settings };
+                let is_connected = world
+                    .get_resource::<LiveStreamState>()
+                    .map(|s| s.is_connected)
+                    .unwrap_or(false);
+                let mut tab_viewer = PropertiesTabViewer {
+                    world,
+                    settings,
+                    is_connected,
+                };
                 DockArea::new(&mut state.dock_state)
                     .style(style)
                     .show_close_buttons(true)
