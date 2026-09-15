@@ -13,28 +13,49 @@ use super::odometry::{LiveRobotMarker, LiveRobotsMap};
 pub const PLANNED_PATH_Z_OFFSET: f32 = 0.05;
 pub const PLANNED_PATH_COLOR: Color = Color::srgb(0.0, 1.0, 0.0);
 
+pub const DEPENDENCY_Z_OFFSET: f32 = 0.051;
+pub const DEPENDENCY_COLOR: Color = Color::srgb(1.0, 0.5, 0.0);
+pub const DEPENDECY_DASH_LENGTH: f32 = 0.15;
+pub const DEPENDECY_GAP_LENGTH: f32 = 0.1;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiveBlocker {
+    pub name: String,
+    pub required_progress: f32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiveWaypoint {
+    pub position: Vec3,
+    pub progress: f32,
+    pub departure_blockers: Vec<LiveBlocker>,
+}
+
 #[derive(Debug, Clone)]
 pub struct LiveEventPlan {
     pub name: String,
-    pub waypoints: Vec<Vec3>,
+    pub waypoints: Vec<LiveWaypoint>,
 }
 
 #[derive(Debug, Clone)]
 pub struct LiveEventProgress {
     pub name: String,
     pub target_waypoint: usize,
+    pub progress: f32,
 }
 
 #[derive(Default, Resource)]
-pub struct LivePathsState(pub HashMap<String, RobotPathData>);
+pub struct LivePathsState(pub HashMap<String, PlannedPathData>);
 
-pub struct RobotPathData {
-    pub waypoints: Vec<Vec3>,
+pub struct PlannedPathData {
+    pub waypoints: Vec<LiveWaypoint>,
     pub target_waypoint: usize,
+    pub current_progress: f32,
 }
 
 pub fn update_live_paths(
     state: Res<LiveStreamState>,
+    time: Res<Time>,
     plan_channel: Res<StreamChannel<LiveEventPlan>>,
     progress_channel: Res<StreamChannel<LiveEventProgress>>,
     mut path_state: ResMut<LivePathsState>,
@@ -51,9 +72,10 @@ pub fn update_live_paths(
         let robot_path = path_state
             .0
             .entry(event.name.clone())
-            .or_insert(RobotPathData {
+            .or_insert(PlannedPathData {
                 waypoints: Vec::new(),
                 target_waypoint: 1,
+                current_progress: 0.0,
             });
 
         if robot_path.waypoints != event.waypoints {
@@ -75,11 +97,13 @@ pub fn update_live_paths(
         let robot_path = path_state
             .0
             .entry(event.name.clone())
-            .or_insert(RobotPathData {
+            .or_insert(PlannedPathData {
                 waypoints: Vec::new(),
                 target_waypoint: event.target_waypoint,
+                current_progress: event.progress,
             });
         robot_path.target_waypoint = event.target_waypoint;
+        robot_path.current_progress = event.progress;
     }
 
     for (name, path_data) in path_state.0.iter() {
@@ -106,10 +130,74 @@ pub fn update_live_paths(
             // Draw line from robot's current position to the target waypoint, then along the path to the final waypoint.
             if final_target_idx < path_data.waypoints.len() {
                 let mut points_to_draw = vec![start_pos];
-                points_to_draw.extend_from_slice(&path_data.waypoints[final_target_idx..]);
+                points_to_draw.extend(
+                    path_data.waypoints[final_target_idx..]
+                        .iter()
+                        .map(|wp| wp.position),
+                );
 
                 if points_to_draw.len() > 1 {
                     gizmos.linestrip(points_to_draw, PLANNED_PATH_COLOR);
+                }
+            }
+        }
+
+        for wp in &path_data.waypoints {
+            // Disappear if the waiting robot has already passed this waypoint
+            if path_data.current_progress >= wp.progress {
+                continue;
+            }
+
+            for blocker in &wp.departure_blockers {
+                if let Some(blocking_path) = path_state.0.get(&blocker.name) {
+                    // Skip drawing if the dependency is fulfilled
+                    if blocking_path.current_progress >= blocker.required_progress {
+                        continue;
+                    }
+
+                    // Find the coordinates where the blocking robot will clear the dependency
+                    let mut clearance_pos = None;
+                    for blocking_wp in &blocking_path.waypoints {
+                        if blocking_wp.progress >= blocker.required_progress {
+                            clearance_pos = Some(Vec3::new(
+                                blocking_wp.position.x,
+                                blocking_wp.position.y,
+                                DEPENDENCY_Z_OFFSET,
+                            ));
+                            break;
+                        }
+                    }
+
+                    // Draw dependency line connecting the waiting point to the clearance point
+                    if let Some(end_pos) = clearance_pos {
+                        let start_pos =
+                            Vec3::new(wp.position.x, wp.position.y, DEPENDENCY_Z_OFFSET);
+                        let delta = end_pos - start_pos;
+                        let distance = delta.length();
+
+                        if distance > 0.0 {
+                            let dir = delta / distance;
+                            let pattern_length = DEPENDECY_DASH_LENGTH + DEPENDECY_GAP_LENGTH;
+                            let speed = 0.5;
+                            let offset = (time.elapsed_secs() * speed) % pattern_length;
+                            let mut current_dist = offset - pattern_length;
+
+                            // Draw dashed line along vector
+                            while current_dist < distance {
+                                let start_dist = current_dist.max(0.0);
+                                let end_dist = (current_dist + DEPENDECY_DASH_LENGTH).min(distance);
+
+                                if start_dist < end_dist {
+                                    let segment_start = start_pos + dir * start_dist;
+                                    let segment_end = start_pos + dir * end_dist;
+
+                                    gizmos.line(segment_start, segment_end, DEPENDENCY_COLOR);
+                                }
+
+                                current_dist += pattern_length;
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -132,10 +220,29 @@ pub async fn handle_plan_stream(
                 break;
             }
 
-            let waypoints: Vec<Vec3> = plan_msg
+            let waypoints: Vec<LiveWaypoint> = plan_msg
                 .waypoints
                 .iter()
-                .map(|wp| Vec3::new(wp.position[0], wp.position[1], 0.05))
+                .map(|wp| {
+                    let blockers = wp
+                        .departure_blockers
+                        .iter()
+                        .map(|b| LiveBlocker {
+                            name: b.name.clone(),
+                            required_progress: b.required_progress,
+                        })
+                        .collect();
+
+                    LiveWaypoint {
+                        position: Vec3::new(
+                            wp.position[0] as f32,
+                            wp.position[1] as f32,
+                            PLANNED_PATH_Z_OFFSET,
+                        ),
+                        progress: wp.progress,
+                        departure_blockers: blockers,
+                    }
+                })
                 .collect();
 
             if let Err(e) = sender.send(LiveEventPlan {
@@ -168,6 +275,7 @@ pub async fn handle_progress_stream(
             if let Err(e) = sender.send(LiveEventProgress {
                 name: robot_name.clone(),
                 target_waypoint: prog_msg.target_waypoint as usize,
+                progress: prog_msg.progress,
             }) {
                 error!("Failed to send Progress event across channel: {}", e);
                 break;
