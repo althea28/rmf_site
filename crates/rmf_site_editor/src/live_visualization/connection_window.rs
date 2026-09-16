@@ -5,9 +5,7 @@ use rmf_site_egui::{Tile, WidgetSystem};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use super::network_client::{start_rosbridge_subscriber, NetworkSenders, StreamChannel};
-use super::odometry::LiveEventOdom;
-use super::planned_paths::{LiveEventPlan, LiveEventProgress};
+use super::network_client::{start_rosbridge_subscriber, StreamRegistry};
 use crate::workspace::CurrentWorkspace;
 
 pub const DEFAULT_CONNECTION_URL: &str = "ws://127.0.0.1:9090";
@@ -30,9 +28,7 @@ impl Default for LiveStreamState {
 pub fn draw_live_stream_button(
     ui: &mut Ui,
     state: &mut LiveStreamState,
-    odom_channel: &StreamChannel<LiveEventOdom>,
-    plan_channel: &StreamChannel<LiveEventPlan>,
-    prog_channel: &StreamChannel<LiveEventProgress>,
+    registry: &StreamRegistry,
 ) {
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         if state.is_connected {
@@ -49,15 +45,9 @@ pub fn draw_live_stream_button(
                 state.is_connected = true;
                 state.connect_flag.store(true, Ordering::Relaxed);
 
-                let senders = NetworkSenders {
-                    odom: odom_channel.sender.clone(),
-                    plan: plan_channel.sender.clone(),
-                    progress: prog_channel.sender.clone(),
-                };
-
                 start_rosbridge_subscriber(
                     DEFAULT_CONNECTION_URL,
-                    senders,
+                    registry.clone(),
                     state.connect_flag.clone(),
                 );
             }
@@ -68,9 +58,7 @@ pub fn draw_live_stream_button(
 #[derive(SystemParam)]
 pub struct LiveStreamButton<'w> {
     state: ResMut<'w, LiveStreamState>,
-    odom_channel: Res<'w, StreamChannel<LiveEventOdom>>,
-    plan_channel: Res<'w, StreamChannel<LiveEventPlan>>,
-    prog_channel: Res<'w, StreamChannel<LiveEventProgress>>,
+    registry: Res<'w, StreamRegistry>,
     workspace: Option<Res<'w, CurrentWorkspace>>,
 }
 
@@ -86,12 +74,6 @@ impl<'w> WidgetSystem<Tile> for LiveStreamButton<'w> {
             return;
         }
 
-        draw_live_stream_button(
-            ui,
-            &mut params.state,
-            &params.odom_channel,
-            &params.plan_channel,
-            &params.prog_channel,
-        );
+        draw_live_stream_button(ui, &mut params.state, &params.registry);
     }
 }

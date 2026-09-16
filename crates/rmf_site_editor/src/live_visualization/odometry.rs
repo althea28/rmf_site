@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::connection_window::LiveStreamState;
-use super::network_client::StreamChannel;
+use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
 
 pub const SMOOTHING_SPEED: f32 = 10.0;
 
@@ -19,6 +19,48 @@ pub struct LiveEventOdom {
     pub y: f32,
     pub z: f32,
     pub yaw: f32,
+}
+
+impl LiveStreamHandler for LiveEventOdom {
+    fn spawn_stream(
+        robot_name: String,
+        client: ClientHandle,
+        sender: Sender<Self>,
+        connect_flag: Arc<AtomicBool>,
+    ) {
+        let topic_name = format!("/{}/odom", robot_name);
+
+        let task = async move {
+            if let Ok(odom_sub) = client.subscribe::<Odometry>(&topic_name).await {
+                loop {
+                    let odom = odom_sub.next().await;
+
+                    if !connect_flag.load(Ordering::Relaxed) {
+                        break;
+                    }
+
+                    let pos = &odom.pose.pose.position;
+                    let q = &odom.pose.pose.orientation;
+
+                    let siny_cosp: f64 = 2.0 * (q.w * q.z + q.x * q.y);
+                    let cosy_cosp: f64 = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
+                    let yaw = siny_cosp.atan2(cosy_cosp) as f32;
+
+                    if let Err(e) = sender.send(LiveEventOdom {
+                        name: robot_name.clone(),
+                        x: pos.x as f32,
+                        y: pos.y as f32,
+                        z: pos.z as f32,
+                        yaw,
+                    }) {
+                        error!("Failed to send Odometry event across channel: {}", e);
+                        break;
+                    }
+                }
+            }
+        };
+        spawn_network_task(task);
+    }
 }
 
 #[derive(Component)]
@@ -33,7 +75,7 @@ pub struct LiveRobotsMap(pub HashMap<String, Entity>);
 
 pub fn update_live_robots(
     state: Res<LiveStreamState>,
-    channel: Res<StreamChannel<LiveEventOdom>>,
+    channel: Res<VisualizationStreamChannel<LiveEventOdom>>,
     time: Res<Time>,
     mut commands: Commands,
     mut robot_map: ResMut<LiveRobotsMap>,
@@ -94,42 +136,5 @@ pub fn update_live_robots(
         transform.rotation = transform
             .rotation
             .slerp(marker.target_rotation, smooth_factor);
-    }
-}
-
-pub async fn handle_odometry_stream(
-    robot_name: String,
-    client: ClientHandle,
-    sender: Sender<LiveEventOdom>,
-    connect_flag: Arc<AtomicBool>,
-) {
-    let topic_name = format!("/{}/odom", robot_name);
-
-    if let Ok(odom_sub) = client.subscribe::<Odometry>(&topic_name).await {
-        loop {
-            let odom = odom_sub.next().await;
-
-            if !connect_flag.load(Ordering::Relaxed) {
-                break;
-            }
-
-            let pos = &odom.pose.pose.position;
-            let q = &odom.pose.pose.orientation;
-
-            let siny_cosp: f64 = 2.0 * (q.w * q.z + q.x * q.y);
-            let cosy_cosp: f64 = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
-            let yaw = siny_cosp.atan2(cosy_cosp) as f32;
-
-            if let Err(e) = sender.send(LiveEventOdom {
-                name: robot_name.clone(),
-                x: pos.x as f32,
-                y: pos.y as f32,
-                z: pos.z as f32,
-                yaw,
-            }) {
-                error!("Failed to send Odometry event across channel: {}", e);
-                break;
-            }
-        }
     }
 }

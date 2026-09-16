@@ -1,28 +1,66 @@
 use bevy::prelude::*;
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::collections::HashSet;
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use rmf_site_msgs::rmf_prototype_msgs::msg::ParticipantList;
 use roslibrust::rosbridge::ClientHandle;
 
-use super::odometry::{handle_odometry_stream, LiveEventOdom};
-use super::planned_paths::{
-    handle_plan_stream, handle_progress_stream, LiveEventPlan, LiveEventProgress,
-};
-
 #[derive(Resource)]
-pub struct StreamChannel<T> {
+pub struct VisualizationStreamChannel<T> {
     pub sender: Sender<T>,
     pub receiver: Receiver<T>,
 }
 
-#[derive(Clone)]
-pub struct NetworkSenders {
-    pub odom: Sender<LiveEventOdom>,
-    pub plan: Sender<LiveEventPlan>,
-    pub progress: Sender<LiveEventProgress>,
+pub trait LiveStreamHandler: Send + Sync + 'static {
+    fn spawn_stream(
+        robot_name: String,
+        client: ClientHandle,
+        sender: Sender<Self>,
+        connect_flag: Arc<AtomicBool>,
+    ) where
+        Self: Sized;
+}
+
+#[derive(Resource, Clone, Default)]
+pub struct StreamRegistry {
+    pub spawners: Vec<Arc<dyn Fn(String, ClientHandle, Arc<AtomicBool>) + Send + Sync>>,
+}
+
+pub struct StreamPlugin<T> {
+    _marker: PhantomData<T>,
+}
+
+impl<T> Default for StreamPlugin<T> {
+    fn default() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<T: LiveStreamHandler> Plugin for StreamPlugin<T> {
+    fn build(&self, app: &mut App) {
+        let (tx, rx) = unbounded();
+        app.insert_resource(VisualizationStreamChannel::<T> {
+            sender: tx.clone(),
+            receiver: rx,
+        });
+
+        if !app.world().contains_resource::<StreamRegistry>() {
+            app.insert_resource(StreamRegistry::default());
+        }
+
+        let tx_clone = tx.clone();
+        app.world_mut()
+            .resource_mut::<StreamRegistry>()
+            .spawners
+            .push(Arc::new(move |robot_name, client, connect_flag| {
+                T::spawn_stream(robot_name, client, tx_clone.clone(), connect_flag);
+            }));
+    }
 }
 
 pub fn spawn_network_task<F>(future: F)
@@ -56,14 +94,14 @@ where
 
 pub fn start_rosbridge_subscriber(
     ws_url: &str,
-    senders: NetworkSenders,
+    registry: StreamRegistry,
     connect_flag: Arc<AtomicBool>,
 ) {
     let url = ws_url.to_string();
-    spawn_network_task(run_rosbridge_loop(url, senders, connect_flag));
+    spawn_network_task(run_rosbridge_loop(url, registry, connect_flag));
 }
 
-async fn run_rosbridge_loop(url: String, senders: NetworkSenders, connect_flag: Arc<AtomicBool>) {
+async fn run_rosbridge_loop(url: String, registry: StreamRegistry, connect_flag: Arc<AtomicBool>) {
     if let Ok(client) = ClientHandle::new(&url).await {
         info!("Connected via roslibrust to {}", url);
 
@@ -89,26 +127,9 @@ async fn run_rosbridge_loop(url: String, senders: NetworkSenders, connect_flag: 
 
                     println!("Subscribing to: {}", p.name);
 
-                    spawn_network_task(handle_odometry_stream(
-                        p.name.clone(),
-                        client.clone(),
-                        senders.odom.clone(),
-                        connect_flag.clone(),
-                    ));
-
-                    spawn_network_task(handle_plan_stream(
-                        p.name.clone(),
-                        client.clone(),
-                        senders.plan.clone(),
-                        connect_flag.clone(),
-                    ));
-
-                    spawn_network_task(handle_progress_stream(
-                        p.name.clone(),
-                        client.clone(),
-                        senders.progress.clone(),
-                        connect_flag.clone(),
-                    ));
+                    for spawner in &registry.spawners {
+                        spawner(p.name.clone(), client.clone(), connect_flag.clone());
+                    }
                 }
             }
         }

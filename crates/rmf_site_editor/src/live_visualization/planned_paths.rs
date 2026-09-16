@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::connection_window::LiveStreamState;
-use super::network_client::StreamChannel;
+use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
 use super::odometry::{LiveRobotMarker, LiveRobotsMap};
 
 pub const PLANNED_PATH_Z_OFFSET: f32 = 0.05;
@@ -37,11 +37,101 @@ pub struct LiveEventPlan {
     pub waypoints: Vec<LiveWaypoint>,
 }
 
+impl LiveStreamHandler for LiveEventPlan {
+    fn spawn_stream(
+        robot_name: String,
+        client: ClientHandle,
+        sender: Sender<Self>,
+        connect_flag: Arc<AtomicBool>,
+    ) {
+        let topic_name = format!("/{}/plan", robot_name);
+
+        let task = async move {
+            if let Ok(plan_sub) = client.subscribe::<Plan>(&topic_name).await {
+                loop {
+                    let plan_msg = plan_sub.next().await;
+
+                    if !connect_flag.load(Ordering::Relaxed) {
+                        break;
+                    }
+
+                    let waypoints: Vec<LiveWaypoint> = plan_msg
+                        .waypoints
+                        .iter()
+                        .map(|wp| {
+                            let blockers = wp
+                                .departure_blockers
+                                .iter()
+                                .map(|b| LiveBlocker {
+                                    name: b.name.clone(),
+                                    required_progress: b.required_progress,
+                                })
+                                .collect();
+
+                            LiveWaypoint {
+                                position: Vec3::new(
+                                    wp.position[0] as f32,
+                                    wp.position[1] as f32,
+                                    PLANNED_PATH_Z_OFFSET,
+                                ),
+                                progress: wp.progress,
+                                departure_blockers: blockers,
+                            }
+                        })
+                        .collect();
+
+                    if let Err(e) = sender.send(LiveEventPlan {
+                        name: robot_name.clone(),
+                        waypoints,
+                    }) {
+                        error!("Failed to send Plan event across channel: {}", e);
+                        break;
+                    }
+                }
+            }
+        };
+        spawn_network_task(task);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LiveEventProgress {
     pub name: String,
     pub target_waypoint: usize,
     pub progress: f32,
+}
+
+impl LiveStreamHandler for LiveEventProgress {
+    fn spawn_stream(
+        robot_name: String,
+        client: ClientHandle,
+        sender: Sender<Self>,
+        connect_flag: Arc<AtomicBool>,
+    ) {
+        let topic_name = format!("/{}/plan/progress", robot_name);
+
+        let task = async move {
+            if let Ok(prog_sub) = client.subscribe::<Progress>(&topic_name).await {
+                loop {
+                    let prog_msg = prog_sub.next().await;
+
+                    if !connect_flag.load(Ordering::Relaxed) {
+                        break;
+                    }
+
+                    if let Err(e) = sender.send(LiveEventProgress {
+                        name: robot_name.clone(),
+                        target_waypoint: prog_msg.target_waypoint as usize,
+                        progress: prog_msg.progress,
+                    }) {
+                        error!("Failed to send Progress event across channel: {}", e);
+                        break;
+                    }
+                }
+            }
+        };
+        spawn_network_task(task);
+    }
 }
 
 #[derive(Default, Resource)]
@@ -56,8 +146,8 @@ pub struct PlannedPathData {
 pub fn update_live_paths(
     state: Res<LiveStreamState>,
     time: Res<Time>,
-    plan_channel: Res<StreamChannel<LiveEventPlan>>,
-    progress_channel: Res<StreamChannel<LiveEventProgress>>,
+    plan_channel: Res<VisualizationStreamChannel<LiveEventPlan>>,
+    progress_channel: Res<VisualizationStreamChannel<LiveEventProgress>>,
     mut path_state: ResMut<LivePathsState>,
     robot_map: Res<LiveRobotsMap>,
     robot_query: Query<&Transform, With<LiveRobotMarker>>,
@@ -199,86 +289,6 @@ pub fn update_live_paths(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-pub async fn handle_plan_stream(
-    robot_name: String,
-    client: ClientHandle,
-    sender: Sender<LiveEventPlan>,
-    connect_flag: Arc<AtomicBool>,
-) {
-    let topic_name = format!("/{}/plan", robot_name);
-
-    if let Ok(plan_sub) = client.subscribe::<Plan>(&topic_name).await {
-        loop {
-            let plan_msg = plan_sub.next().await;
-
-            if !connect_flag.load(Ordering::Relaxed) {
-                break;
-            }
-
-            let waypoints: Vec<LiveWaypoint> = plan_msg
-                .waypoints
-                .iter()
-                .map(|wp| {
-                    let blockers = wp
-                        .departure_blockers
-                        .iter()
-                        .map(|b| LiveBlocker {
-                            name: b.name.clone(),
-                            required_progress: b.required_progress,
-                        })
-                        .collect();
-
-                    LiveWaypoint {
-                        position: Vec3::new(
-                            wp.position[0] as f32,
-                            wp.position[1] as f32,
-                            PLANNED_PATH_Z_OFFSET,
-                        ),
-                        progress: wp.progress,
-                        departure_blockers: blockers,
-                    }
-                })
-                .collect();
-
-            if let Err(e) = sender.send(LiveEventPlan {
-                name: robot_name.clone(),
-                waypoints,
-            }) {
-                error!("Failed to send Plan event across channel: {}", e);
-                break;
-            }
-        }
-    }
-}
-
-pub async fn handle_progress_stream(
-    robot_name: String,
-    client: ClientHandle,
-    sender: Sender<LiveEventProgress>,
-    connect_flag: Arc<AtomicBool>,
-) {
-    let topic_name = format!("/{}/plan/progress", robot_name);
-
-    if let Ok(prog_sub) = client.subscribe::<Progress>(&topic_name).await {
-        loop {
-            let prog_msg = prog_sub.next().await;
-
-            if !connect_flag.load(Ordering::Relaxed) {
-                break;
-            }
-
-            if let Err(e) = sender.send(LiveEventProgress {
-                name: robot_name.clone(),
-                target_waypoint: prog_msg.target_waypoint as usize,
-                progress: prog_msg.progress,
-            }) {
-                error!("Failed to send Progress event across channel: {}", e);
-                break;
             }
         }
     }
