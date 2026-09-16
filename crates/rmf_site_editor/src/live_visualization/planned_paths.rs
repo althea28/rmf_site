@@ -14,9 +14,13 @@ pub const PLANNED_PATH_Z_OFFSET: f32 = 0.05;
 pub const PLANNED_PATH_COLOR: Color = Color::srgb(0.0, 1.0, 0.0);
 
 pub const DEPENDENCY_Z_OFFSET: f32 = 0.051;
-pub const DEPENDENCY_COLOR: Color = Color::srgb(1.0, 0.5, 0.0);
-pub const DEPENDECY_DASH_LENGTH: f32 = 0.15;
-pub const DEPENDECY_GAP_LENGTH: f32 = 0.1;
+pub const DEPENDENCY_LINE_COLOR: Color = Color::srgb(1.0, 0.5, 0.0);
+pub const DEPENDENCY_WAITING_COLOR: Color = Color::srgb(1.0, 0.0, 0.0);
+pub const DEPENDENCY_DASH_LENGTH: f32 = 0.15;
+pub const DEPENDENCY_GAP_LENGTH: f32 = 0.1;
+pub const DEPENDENCY_LINE_SPEED: f32 = 0.5;
+pub const DEPENDENCY_ARROW_SIZE: f32 = 0.1;
+pub const DEPENDENCY_WAITING_POINT_SIZE: f32 = 0.05;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LiveBlocker {
@@ -232,7 +236,7 @@ pub fn update_live_paths(
             }
         }
 
-        for wp in &path_data.waypoints {
+        for (i, wp) in path_data.waypoints.iter().enumerate() {
             // Disappear if the waiting robot has already passed this waypoint
             if path_data.current_progress >= wp.progress {
                 continue;
@@ -262,34 +266,66 @@ pub fn update_live_paths(
                     if let Some(end_pos) = clearance_pos {
                         let start_pos =
                             Vec3::new(wp.position.x, wp.position.y, DEPENDENCY_Z_OFFSET);
-                        let delta = end_pos - start_pos;
-                        let distance = delta.length();
-
-                        if distance > 0.0 {
-                            let dir = delta / distance;
-                            let pattern_length = DEPENDECY_DASH_LENGTH + DEPENDECY_GAP_LENGTH;
-                            let speed = 0.5;
-                            let offset = (time.elapsed_secs() * speed) % pattern_length;
-                            let mut current_dist = offset - pattern_length;
-
-                            // Draw dashed line along vector
-                            while current_dist < distance {
-                                let start_dist = current_dist.max(0.0);
-                                let end_dist = (current_dist + DEPENDECY_DASH_LENGTH).min(distance);
-
-                                if start_dist < end_dist {
-                                    let segment_start = start_pos + dir * start_dist;
-                                    let segment_end = start_pos + dir * end_dist;
-
-                                    gizmos.line(segment_start, segment_end, DEPENDENCY_COLOR);
-                                }
-
-                                current_dist += pattern_length;
-                            }
-                        }
+                        let wait_wp = if i > 0 {
+                            &path_data.waypoints[i - 1]
+                        } else {
+                            wp
+                        };
+                        let waiting_pos =
+                            Vec3::new(wait_wp.position.x, wait_wp.position.y, DEPENDENCY_Z_OFFSET);
+                        draw_dependency_line(start_pos, end_pos, waiting_pos, &time, &mut gizmos);
                     }
                 }
             }
         }
+    }
+}
+
+fn draw_dependency_line(
+    start_pos: Vec3,
+    end_pos: Vec3,
+    waiting_pos: Vec3,
+    time: &Time,
+    gizmos: &mut Gizmos,
+) {
+    let delta = end_pos - start_pos;
+    let distance = delta.length();
+
+    if distance > 0.0 {
+        let dir = delta / distance;
+        let pattern_length = DEPENDENCY_DASH_LENGTH + DEPENDENCY_GAP_LENGTH;
+        let offset = (time.elapsed_secs() * DEPENDENCY_LINE_SPEED) % pattern_length;
+        let mut current_dist = offset - pattern_length;
+
+        // Draw dashed line along vector
+        while current_dist < distance {
+            let start_dist = current_dist.max(0.0);
+            let end_dist = (current_dist + DEPENDENCY_DASH_LENGTH).min(distance);
+
+            if start_dist < end_dist {
+                let segment_start = start_pos + dir * start_dist;
+                let segment_end = start_pos + dir * end_dist;
+
+                gizmos.line(segment_start, segment_end, DEPENDENCY_LINE_COLOR);
+            }
+
+            current_dist += pattern_length;
+        }
+
+        let perp = Vec3::new(-dir.y, dir.x, 0.0);
+
+        // 1. Draw circle at waiting robot's waiting position
+        gizmos.circle(
+            Isometry3d::new(waiting_pos, Quat::IDENTITY),
+            DEPENDENCY_WAITING_POINT_SIZE,
+            DEPENDENCY_WAITING_COLOR,
+        );
+
+        // 2. Draw arrowhead to show blocking robot's movement
+        let p1 = end_pos - dir * DEPENDENCY_ARROW_SIZE + perp * (DEPENDENCY_ARROW_SIZE * 0.5);
+        let p2 = end_pos - dir * DEPENDENCY_ARROW_SIZE - perp * (DEPENDENCY_ARROW_SIZE * 0.5);
+
+        gizmos.line(end_pos, p1, DEPENDENCY_LINE_COLOR);
+        gizmos.line(end_pos, p2, DEPENDENCY_LINE_COLOR);
     }
 }

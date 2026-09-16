@@ -189,7 +189,7 @@ fn egui_ui(
                 ui.horizontal(|ui| {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_space(MAIN_MENU_PADDING);
-                        if ui.button("Exit").clicked() {
+                        if ui.button("  Exit  ").clicked() {
                             _exit.write(AppExit::Success);
                         }
                     });
