@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use crossbeam_channel::Sender;
-use rmf_site_format::NameInSite;
+use rmf_site_format::{Angle, NameInSite, Pose, Rotation};
 use rmf_site_msgs::nav_msgs::msg::Odometry;
+use rmf_site_picking::Selectable;
 use roslibrust::rosbridge::ClientHandle;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -9,8 +10,6 @@ use std::sync::Arc;
 
 use super::connection_window::LiveStreamState;
 use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
-
-pub const SMOOTHING_SPEED: f32 = 10.0;
 
 #[derive(Debug, Clone)]
 pub struct LiveEventOdom {
@@ -66,8 +65,6 @@ impl LiveStreamHandler for LiveEventOdom {
 #[derive(Component)]
 pub struct LiveRobotMarker {
     pub name: String,
-    pub target_translation: Vec3,
-    pub target_rotation: Quat,
 }
 
 #[derive(Default, Resource)]
@@ -76,65 +73,75 @@ pub struct LiveRobotsMap(pub HashMap<String, Entity>);
 pub fn update_live_robots(
     state: Res<LiveStreamState>,
     channel: Res<VisualizationStreamChannel<LiveEventOdom>>,
-    time: Res<Time>,
     mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     mut robot_map: ResMut<LiveRobotsMap>,
-    mut live_robots_query: Query<(&mut LiveRobotMarker, &mut Transform)>,
-    mut untracked_entities_query: Query<
-        (Entity, &NameInSite, &mut Transform),
-        Without<LiveRobotMarker>,
-    >,
+    mut live_query: Query<(&LiveRobotMarker, &mut Pose)>,
+    mut untracked_query: Query<(Entity, &NameInSite, &mut Pose), Without<LiveRobotMarker>>,
 ) {
     if !state.connection_requested.load(Ordering::Relaxed) {
         return;
     }
 
     while let Ok(event) = channel.receiver.try_recv() {
-        let target_pos = Vec3::new(event.x, event.y, event.z);
-        let target_rot = Quat::from_rotation_z(event.yaw);
+        let mut found = false;
 
         // Find existing robot
-        if let Some(&entity) = robot_map.0.get(&event.name) {
-            if let Ok((mut robot, _)) = live_robots_query.get_mut(entity) {
-                robot.target_translation = target_pos;
-                robot.target_rotation = target_rot;
-                continue;
-            } else {
-                robot_map.0.remove(&event.name);
-            }
-        }
-
-        // New untracked robot: find matching NameInSite
-        let mut found_entity = None;
-        for (entity, name_in_site, mut transform) in untracked_entities_query.iter_mut() {
-            if name_in_site.0 == event.name {
-                transform.translation = target_pos;
-                transform.rotation = target_rot;
-                commands.entity(entity).insert(LiveRobotMarker {
-                    name: event.name.clone(),
-                    target_translation: target_pos,
-                    target_rotation: target_rot,
-                });
-                found_entity = Some(entity);
+        for (robot, mut pose) in live_query.iter_mut() {
+            if robot.name == event.name {
+                pose.trans = [event.x, event.y, event.z];
+                pose.rot = Rotation::Yaw(Angle::Rad(event.yaw).match_variant(pose.rot.yaw()));
+                found = true;
                 break;
             }
         }
 
-        if let Some(entity) = found_entity {
-            robot_map.0.insert(event.name, entity);
-        } else {
-            println!("Robot {} not found in the scene.", event.name);
+        if found {
+            continue;
         }
-    }
 
-    // Use linear interpolation to smooth out movement
-    let smooth_factor = (SMOOTHING_SPEED * time.delta_secs()).min(1.0);
-    for (marker, mut transform) in live_robots_query.iter_mut() {
-        transform.translation = transform
-            .translation
-            .lerp(marker.target_translation, smooth_factor);
-        transform.rotation = transform
-            .rotation
-            .slerp(marker.target_rotation, smooth_factor);
+        // New untracked robot: find matching NameInSite
+        for (entity, name_in_site, mut pose) in untracked_query.iter_mut() {
+            if name_in_site.0 == event.name {
+                pose.trans = [event.x, event.y, event.z];
+                pose.rot = Rotation::Yaw(Angle::Rad(event.yaw).match_variant(pose.rot.yaw()));
+
+                commands.entity(entity).insert(LiveRobotMarker {
+                    name: event.name.clone(),
+                });
+                robot_map.0.insert(event.name.clone(), entity);
+
+                println!("Hooked onto existing site robot: {}", event.name);
+                found = true;
+                break;
+            }
+        }
+
+        if !found {
+            let entity = commands
+                .spawn((
+                    LiveRobotMarker {
+                        name: event.name.clone(),
+                    },
+                    Pose {
+                        trans: [event.x, event.y, event.z],
+                        rot: Rotation::Yaw(Angle::Rad(event.yaw)),
+                    },
+                    NameInSite(event.name.clone()),
+                    Mesh3d(meshes.add(Mesh::from(Cylinder::new(0.3, 0.2)))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgb(0.2, 0.7, 0.9),
+                        ..default()
+                    })),
+                    Transform::from_xyz(event.x, event.y, event.z)
+                        .with_rotation(Quat::from_rotation_z(event.yaw)),
+                    Visibility::default(),
+                ))
+                .id();
+            commands.entity(entity).insert(Selectable::new(entity));
+            robot_map.0.insert(event.name.clone(), entity);
+            println!("Spawned fallback visual for: {}", event.name);
+        }
     }
 }

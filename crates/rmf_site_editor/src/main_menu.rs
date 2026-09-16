@@ -22,7 +22,8 @@ use crate::live_visualization::odometry::{LiveRobotMarker, LiveRobotsMap};
 use crate::{site::LoadSite, AppState, Autoload, WorkspaceLoader};
 use bevy::{app::AppExit, prelude::*, window::PrimaryWindow};
 use bevy_egui::{egui, EguiContexts};
-use rmf_site_format::NameInSite;
+use rmf_site_format::{Angle, NameInSite, Pose, Rotation};
+use rmf_site_picking::Selectable;
 use std::sync::atomic::Ordering;
 
 const MAIN_MENU_PADDING: f32 = 10.0;
@@ -134,6 +135,7 @@ fn egui_ui(
                                     Ok(LoadSite::blank_L1("live".to_owned(), None))
                                 });
 
+                                // ===================================================================
                                 // Temporarily spawn robot placeholder meshes to test data streaming.
                                 // Long term end goal is to be able to stream model data to spawn in-world.
                                 let robot_mesh =
@@ -150,8 +152,10 @@ fn egui_ui(
                                         .spawn((
                                             LiveRobotMarker {
                                                 name: name.to_string(),
-                                                target_translation: Vec3::ZERO,
-                                                target_rotation: Quat::IDENTITY,
+                                            },
+                                            Pose {
+                                                trans: [0.0, 0.0, 0.0],
+                                                rot: Rotation::Yaw(Angle::Rad(0.0)),
                                             },
                                             NameInSite(name.to_string()),
                                             Mesh3d(robot_mesh.clone()),
@@ -160,14 +164,17 @@ fn egui_ui(
                                             Visibility::default(),
                                         ))
                                         .id();
+                                    commands.entity(entity).insert(Selectable::new(entity));
                                     robot_map.0.insert(name.to_string(), entity);
                                 }
+                                // ===================================================================
                             }
                         });
                     });
 
                 let x = (columns[0].max_rect().right() + columns[1].max_rect().left()) * 0.5;
-                let top = columns[0].min_rect().top().min(columns[1].min_rect().top()) + MAIN_MENU_PADDING;
+                let top = columns[0].min_rect().top().min(columns[1].min_rect().top())
+                    + MAIN_MENU_PADDING;
                 let bottom = columns[0]
                     .min_rect()
                     .bottom()
