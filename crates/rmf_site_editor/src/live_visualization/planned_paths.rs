@@ -42,7 +42,7 @@ impl LiveStreamHandler for LiveEventPlan {
         robot_name: String,
         client: ClientHandle,
         sender: Sender<Self>,
-        connect_flag: Arc<AtomicBool>,
+        connection_requested: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan", robot_name);
 
@@ -51,7 +51,7 @@ impl LiveStreamHandler for LiveEventPlan {
                 loop {
                     let plan_msg = plan_sub.next().await;
 
-                    if !connect_flag.load(Ordering::Relaxed) {
+                    if !connection_requested.load(Ordering::Relaxed) {
                         break;
                     }
 
@@ -106,7 +106,7 @@ impl LiveStreamHandler for LiveEventProgress {
         robot_name: String,
         client: ClientHandle,
         sender: Sender<Self>,
-        connect_flag: Arc<AtomicBool>,
+        connection_requested: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan/progress", robot_name);
 
@@ -115,7 +115,7 @@ impl LiveStreamHandler for LiveEventProgress {
                 loop {
                     let prog_msg = prog_sub.next().await;
 
-                    if !connect_flag.load(Ordering::Relaxed) {
+                    if !connection_requested.load(Ordering::Relaxed) {
                         break;
                     }
 
@@ -153,7 +153,7 @@ pub fn update_live_paths(
     robot_query: Query<&Transform, With<LiveRobotMarker>>,
     mut gizmos: Gizmos,
 ) {
-    if !state.is_connected {
+    if !state.connection_requested.load(Ordering::Relaxed) {
         path_state.0.clear();
         return;
     }

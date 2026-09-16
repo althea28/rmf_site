@@ -19,7 +19,7 @@ pub trait LiveStreamHandler: Send + Sync + 'static {
         robot_name: String,
         client: ClientHandle,
         sender: Sender<Self>,
-        connect_flag: Arc<AtomicBool>,
+        connection_requested: Arc<AtomicBool>,
     ) where
         Self: Sized;
 }
@@ -57,8 +57,8 @@ impl<T: LiveStreamHandler> Plugin for StreamPlugin<T> {
         app.world_mut()
             .resource_mut::<StreamRegistry>()
             .spawners
-            .push(Arc::new(move |robot_name, client, connect_flag| {
-                T::spawn_stream(robot_name, client, tx_clone.clone(), connect_flag);
+            .push(Arc::new(move |robot_name, client, connection_requested| {
+                T::spawn_stream(robot_name, client, tx_clone.clone(), connection_requested);
             }));
     }
 }
@@ -95,15 +95,27 @@ where
 pub fn start_rosbridge_subscriber(
     ws_url: &str,
     registry: StreamRegistry,
-    connect_flag: Arc<AtomicBool>,
+    connection_requested: Arc<AtomicBool>,
+    connection_active: Arc<AtomicBool>,
 ) {
     let url = ws_url.to_string();
-    spawn_network_task(run_rosbridge_loop(url, registry, connect_flag));
+    spawn_network_task(run_rosbridge_loop(
+        url,
+        registry,
+        connection_requested,
+        connection_active,
+    ));
 }
 
-async fn run_rosbridge_loop(url: String, registry: StreamRegistry, connect_flag: Arc<AtomicBool>) {
+async fn run_rosbridge_loop(
+    url: String,
+    registry: StreamRegistry,
+    connection_requested: Arc<AtomicBool>,
+    connection_active: Arc<AtomicBool>,
+) {
     if let Ok(client) = ClientHandle::new(&url).await {
         info!("Connected via roslibrust to {}", url);
+        connection_active.store(true, Ordering::Relaxed);
 
         if let Ok(discovery_sub) = client
             .subscribe::<ParticipantList>("/destination/discovery")
@@ -114,7 +126,7 @@ async fn run_rosbridge_loop(url: String, registry: StreamRegistry, connect_flag:
             loop {
                 let msg = discovery_sub.next().await;
 
-                if !connect_flag.load(Ordering::Relaxed) {
+                if !connection_requested.load(Ordering::Relaxed) {
                     println!("Disconnecting from rosbridge discovery stream.");
                     break;
                 }
@@ -128,12 +140,15 @@ async fn run_rosbridge_loop(url: String, registry: StreamRegistry, connect_flag:
                     println!("Subscribing to: {}", p.name);
 
                     for spawner in &registry.spawners {
-                        spawner(p.name.clone(), client.clone(), connect_flag.clone());
+                        spawner(p.name.clone(), client.clone(), connection_requested.clone());
                     }
                 }
             }
         }
+
+        connection_active.store(false, Ordering::Relaxed);
     } else {
         println!("Failed to connect to rosbridge WebSocket at {}", url);
+        connection_active.store(false, Ordering::Relaxed);
     }
 }

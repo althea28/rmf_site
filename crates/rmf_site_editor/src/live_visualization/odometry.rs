@@ -26,7 +26,7 @@ impl LiveStreamHandler for LiveEventOdom {
         robot_name: String,
         client: ClientHandle,
         sender: Sender<Self>,
-        connect_flag: Arc<AtomicBool>,
+        connection_requested: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/odom", robot_name);
 
@@ -35,7 +35,7 @@ impl LiveStreamHandler for LiveEventOdom {
                 loop {
                     let odom = odom_sub.next().await;
 
-                    if !connect_flag.load(Ordering::Relaxed) {
+                    if !connection_requested.load(Ordering::Relaxed) {
                         break;
                     }
 
@@ -85,7 +85,7 @@ pub fn update_live_robots(
         Without<LiveRobotMarker>,
     >,
 ) {
-    if !state.is_connected {
+    if !state.connection_requested.load(Ordering::Relaxed) {
         return;
     }
 

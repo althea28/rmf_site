@@ -19,6 +19,7 @@ use bevy::prelude::*;
 use bevy_egui::egui::{self, Ui, WidgetText};
 use egui_dock::{DockArea, DockState, Style, TabViewer};
 use std::collections::HashSet;
+use std::sync::atomic::Ordering;
 
 use crate::live_visualization::connection_window::LiveStreamState;
 use crate::AppState;
@@ -235,7 +236,7 @@ pub fn show_properties_panel(
                     .unwrap_or(PanelSettings::right());
                 let is_connected = world
                     .get_resource::<LiveStreamState>()
-                    .map(|s| s.is_connected)
+                    .map(|s| s.connection_active.load(Ordering::Relaxed))
                     .unwrap_or(false);
                 let mut tab_viewer = PropertiesTabViewer {
                     world,
