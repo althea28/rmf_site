@@ -2710,7 +2710,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2967,7 +2967,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4758,7 +4758,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6055,9 +6055,11 @@ dependencies = [
 name = "rmf_site_msgs"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "roslibrust",
  "roslibrust_codegen",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -6119,7 +6121,7 @@ dependencies = [
 [[package]]
 name = "roslibrust"
 version = "0.20.0"
-source = "git+https://github.com/althea28/roslibrust#5dd597aec4fe821177796c896e936b0e1f7a538d"
+source = "git+https://github.com/althea28/roslibrust#becdf87f04fcfa83264185e4dd7e97f19c4b359a"
 dependencies = [
  "roslibrust_codegen",
  "roslibrust_common",
@@ -6129,7 +6131,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_codegen"
 version = "0.20.0"
-source = "git+https://github.com/althea28/roslibrust#5dd597aec4fe821177796c896e936b0e1f7a538d"
+source = "git+https://github.com/althea28/roslibrust#becdf87f04fcfa83264185e4dd7e97f19c4b359a"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -6155,7 +6157,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_common"
 version = "0.20.0"
-source = "git+https://github.com/althea28/roslibrust#5dd597aec4fe821177796c896e936b0e1f7a538d"
+source = "git+https://github.com/althea28/roslibrust#becdf87f04fcfa83264185e4dd7e97f19c4b359a"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6169,7 +6171,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_rosbridge"
 version = "0.20.0"
-source = "git+https://github.com/althea28/roslibrust#5dd597aec4fe821177796c896e936b0e1f7a538d"
+source = "git+https://github.com/althea28/roslibrust#becdf87f04fcfa83264185e4dd7e97f19c4b359a"
 dependencies = [
  "anyhow",
  "dashmap",
@@ -6255,7 +6257,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6687,7 +6689,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7946,7 +7948,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

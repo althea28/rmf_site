@@ -15,8 +15,8 @@ fn main() {
         fs::create_dir_all(&ros2_interfaces_dir).unwrap();
 
         // Open the manifest file to pipe into the vcs command
-        let repos_file = fs::File::open(&repos_file_path)
-            .expect("Failed to open ros2_interfaces.repos file");
+        let repos_file =
+            fs::File::open(&repos_file_path).expect("Failed to open ros2_interfaces.repos file");
 
         let status = Command::new("vcs")
             .arg("import")
