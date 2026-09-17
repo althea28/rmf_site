@@ -147,6 +147,17 @@ pub struct PlannedPathData {
     pub current_progress: f32,
 }
 
+impl PlannedPathData {
+    pub fn is_completed(&self) -> bool {
+        self.waypoints.is_empty()
+            || self.target_waypoint >= self.waypoints.len()
+            || self
+                .waypoints
+                .last()
+                .is_some_and(|last_wp| self.current_progress >= last_wp.progress)
+    }
+}
+
 pub fn update_live_paths(
     state: Res<LiveStreamState>,
     time: Res<Time>,
@@ -169,7 +180,7 @@ pub fn update_live_paths(
             .or_insert(PlannedPathData {
                 waypoints: Vec::new(),
                 target_waypoint: 1,
-                current_progress: 0.0,
+                current_progress: f32::MAX,
             });
 
         if robot_path.waypoints != event.waypoints {
@@ -183,6 +194,7 @@ pub fn update_live_paths(
             // first, so the target_waypoint is left alone.
             if has_existing_path {
                 robot_path.target_waypoint = 1;
+                robot_path.current_progress = 0.0;
             }
         }
     }
@@ -201,7 +213,7 @@ pub fn update_live_paths(
     }
 
     for (name, path_data) in path_state.0.iter() {
-        if path_data.waypoints.is_empty() {
+        if path_data.is_completed() {
             continue;
         }
 
