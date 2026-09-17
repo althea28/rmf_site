@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use super::connection_window::LiveStreamState;
+use super::live_state::LiveStreamState;
 use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
 
 #[derive(Debug, Clone)]
@@ -74,8 +74,6 @@ pub fn update_live_robots(
     state: Res<LiveStreamState>,
     channel: Res<VisualizationStreamChannel<LiveEventOdom>>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut robot_map: ResMut<LiveRobotsMap>,
     mut live_query: Query<(&LiveRobotMarker, &mut Pose)>,
     mut untracked_query: Query<(Entity, &NameInSite, &mut Pose), Without<LiveRobotMarker>>,
@@ -112,36 +110,13 @@ pub fn update_live_robots(
                 });
                 robot_map.0.insert(event.name.clone(), entity);
 
-                println!("Hooked onto existing site robot: {}", event.name);
                 found = true;
                 break;
             }
         }
 
         if !found {
-            let entity = commands
-                .spawn((
-                    LiveRobotMarker {
-                        name: event.name.clone(),
-                    },
-                    Pose {
-                        trans: [event.x, event.y, event.z],
-                        rot: Rotation::Yaw(Angle::Rad(event.yaw)),
-                    },
-                    NameInSite(event.name.clone()),
-                    Mesh3d(meshes.add(Mesh::from(Cylinder::new(0.3, 0.2)))),
-                    MeshMaterial3d(materials.add(StandardMaterial {
-                        base_color: Color::srgb(0.2, 0.7, 0.9),
-                        ..default()
-                    })),
-                    Transform::from_xyz(event.x, event.y, event.z)
-                        .with_rotation(Quat::from_rotation_z(event.yaw)),
-                    Visibility::default(),
-                ))
-                .id();
-            commands.entity(entity).insert(Selectable::new(entity));
-            robot_map.0.insert(event.name.clone(), entity);
-            println!("Spawned fallback visual for: {}", event.name);
+            println!("No matching NameInSite found for: {}", event.name);
         }
     }
 }

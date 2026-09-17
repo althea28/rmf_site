@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use super::connection_window::LiveStreamState;
+use super::live_state::LiveStreamState;
 use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
 use super::planned_paths::LivePathsState;
 

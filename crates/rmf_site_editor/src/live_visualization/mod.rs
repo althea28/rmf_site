@@ -1,4 +1,4 @@
-pub mod connection_window;
+pub mod live_state;
 pub mod network_client;
 pub mod odometry;
 pub mod planned_paths;
@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use rmf_site_egui::{HeaderPanel, HeaderTilePlugin};
 use std::sync::atomic::Ordering;
 
-use connection_window::{LiveStreamState, LiveStreamStatusWidget};
+use live_state::{LiveStreamState, LiveStreamStatusWidget};
 use network_client::StreamPlugin;
 use odometry::{update_live_robots, LiveEventOdom, LiveRobotMarker, LiveRobotsMap};
 use planned_paths::{update_live_paths, LiveEventPlan, LiveEventProgress, LivePathsState};

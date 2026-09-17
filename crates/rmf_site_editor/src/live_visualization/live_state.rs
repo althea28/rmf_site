@@ -6,10 +6,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 pub const DEFAULT_CONNECTION_URL: &str = "ws://127.0.0.1:9090";
+pub const DEFAULT_SITE_DATA_URL: &str = "http://127.0.0.1:8080/site_file";
 
 #[derive(Resource)]
 pub struct LiveStreamState {
     pub url: String,
+    pub site_url: String,
     pub connection_requested: Arc<AtomicBool>,
     pub connection_active: Arc<AtomicBool>,
 }
@@ -18,6 +20,7 @@ impl Default for LiveStreamState {
     fn default() -> Self {
         Self {
             url: DEFAULT_CONNECTION_URL.to_string(),
+            site_url: DEFAULT_SITE_DATA_URL.to_string(),
             connection_requested: Arc::new(AtomicBool::new(false)),
             connection_active: Arc::new(AtomicBool::new(false)),
         }
