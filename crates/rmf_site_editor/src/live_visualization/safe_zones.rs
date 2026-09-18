@@ -9,7 +9,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::live_state::LiveStreamState;
-use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
+use super::network_client::{
+    spawn_network_task, wait_until_inactive, LiveStreamHandler, VisualizationStreamChannel,
+};
+use super::odometry::LiveRobotMarker;
 use super::planned_paths::LivePathsState;
 
 const SAFE_ZONE_Z_OFFSET: f32 = 0.045;
@@ -31,16 +34,22 @@ impl LiveStreamHandler for LiveEventSafeZone {
         robot_name: String,
         client: ClientHandle,
         sender: Sender<Self>,
-        connection_requested: Arc<AtomicBool>,
+        connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan/safe_zone", robot_name);
 
         let task = async move {
             if let Ok(sz_sub) = client.subscribe::<SafeZone>(&topic_name).await {
                 loop {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let sz_msg = tokio::select! {
+                        msg = sz_sub.next() => msg,
+                        _ = wait_until_inactive(&connection_active) => break,
+                    };
+                    #[cfg(target_arch = "wasm32")]
                     let sz_msg = sz_sub.next().await;
 
-                    if !connection_requested.load(Ordering::Relaxed) {
+                    if !connection_active.load(Ordering::Relaxed) {
                         break;
                     }
 
@@ -89,9 +98,10 @@ pub fn update_live_safe_zones(
         &mut MeshMaterial3d<StandardMaterial>,
         &mut Visibility,
     )>,
+    robot_query: Query<&LiveRobotMarker>,
 ) {
     // Cleanup all SafeZone entities on network disconnect
-    if !state.connection_requested.load(Ordering::Relaxed) {
+    if !state.connection_active.load(Ordering::Relaxed) {
         for (_, entity) in safe_zones_state.0.drain() {
             if let Ok(mut cmds) = commands.get_entity(entity) {
                 cmds.despawn();
@@ -187,12 +197,20 @@ pub fn update_live_safe_zones(
 
     // Update visibility of each existing SafeZones based on robot progress
     for (_, marker, _, _, _, mut visibility) in marker_query.iter_mut() {
+        let mut robot_exists = false;
+        for robot in robot_query.iter() {
+            if robot.name == marker.name {
+                robot_exists = true;
+                break;
+            }
+        }
+
         let has_arrived = path_state
             .0
             .get(&marker.name)
             .map_or(true, |path_data| path_data.is_completed());
 
-        if has_arrived {
+        if has_arrived || !robot_exists {
             *visibility = Visibility::Hidden;
         } else {
             *visibility = Visibility::Inherited;

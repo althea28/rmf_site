@@ -14,6 +14,7 @@ pub struct LiveStreamState {
     pub site_url: String,
     pub connection_requested: Arc<AtomicBool>,
     pub connection_active: Arc<AtomicBool>,
+    pub site_loaded: bool,
 }
 
 impl Default for LiveStreamState {
@@ -23,6 +24,7 @@ impl Default for LiveStreamState {
             site_url: DEFAULT_SITE_DATA_URL.to_string(),
             connection_requested: Arc::new(AtomicBool::new(false)),
             connection_active: Arc::new(AtomicBool::new(false)),
+            site_loaded: false,
         }
     }
 }
@@ -44,8 +46,48 @@ impl<'w> WidgetSystem<Tile> for LiveStreamStatusWidget<'w> {
             if params.state.connection_active.load(Ordering::Relaxed) {
                 ui.label(egui::RichText::new("\u{2022}  Connected").color(egui::Color32::GREEN));
             } else {
-                ui.label(egui::RichText::new("\u{2022}  Disconnected").color(egui::Color32::WHITE));
+                ui.label(egui::RichText::new("\u{2022}  Disconnected").color(egui::Color32::RED));
             }
+        });
+    }
+}
+
+pub fn auto_fetch_site_on_connect(
+    mut state: ResMut<LiveStreamState>,
+    mut workspace_loader: crate::WorkspaceLoader,
+) {
+    let is_currently_active = state.connection_active.load(Ordering::Relaxed);
+
+    if is_currently_active && !state.site_loaded {
+        state.site_loaded = true;
+
+        println!(
+            "Network connected! Automatically downloading site data from: {}",
+            state.site_url
+        );
+
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let request = ehttp::Request::get(&state.site_url);
+
+        ehttp::fetch(request, move |result| {
+            let _ = tx.send(result);
+        });
+
+        workspace_loader.load_site(async move {
+            if let Ok(Ok(response)) = rx.await {
+                if response.status == 200 {
+                    println!("Successfully downloaded and applied live site map!");
+                    return crate::site::LoadSite::from_data(&response.bytes, None);
+                } else {
+                    println!(
+                        "Backend returned HTTP Error {}: {}",
+                        response.status, response.status_text
+                    );
+                }
+            } else {
+                println!("Failed to download site map from backend.");
+            }
+            Err(crate::site::LoadSiteError::UnknownDataFormat)
         });
     }
 }

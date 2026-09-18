@@ -19,7 +19,7 @@ pub trait LiveStreamHandler: Send + Sync + 'static {
         robot_name: String,
         client: ClientHandle,
         sender: Sender<Self>,
-        connection_requested: Arc<AtomicBool>,
+        connection_active: Arc<AtomicBool>,
     ) where
         Self: Sized;
 }
@@ -57,8 +57,8 @@ impl<T: LiveStreamHandler> Plugin for StreamPlugin<T> {
         app.world_mut()
             .resource_mut::<StreamRegistry>()
             .spawners
-            .push(Arc::new(move |robot_name, client, connection_requested| {
-                T::spawn_stream(robot_name, client, tx_clone.clone(), connection_requested);
+            .push(Arc::new(move |robot_name, client, connection_active| {
+                T::spawn_stream(robot_name, client, tx_clone.clone(), connection_active);
             }));
     }
 }
@@ -92,6 +92,15 @@ where
     bevy::tasks::IoTaskPool::get().spawn(future).detach();
 }
 
+pub async fn wait_until_inactive(connection_active: &Arc<AtomicBool>) {
+    while connection_active.load(Ordering::Relaxed) {
+        #[cfg(not(target_arch = "wasm32"))]
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        #[cfg(target_arch = "wasm32")]
+        break;
+    }
+}
+
 pub fn start_rosbridge_subscriber(
     ws_url: &str,
     registry: StreamRegistry,
@@ -113,42 +122,89 @@ async fn run_rosbridge_loop(
     connection_requested: Arc<AtomicBool>,
     connection_active: Arc<AtomicBool>,
 ) {
-    if let Ok(client) = ClientHandle::new(&url).await {
-        info!("Connected via roslibrust to {}", url);
-        connection_active.store(true, Ordering::Relaxed);
+    while connection_requested.load(Ordering::Relaxed) {
+        let opts = roslibrust::rosbridge::ClientHandleOptions::new(&url)
+            .timeout(std::time::Duration::from_secs(2));
+        if let Ok(client) = ClientHandle::new_with_options(opts).await {
+            info!("Connected via roslibrust to {}", url);
+            connection_active.store(true, Ordering::Relaxed);
 
-        if let Ok(discovery_sub) = client
-            .subscribe::<ParticipantList>("/destination/discovery")
-            .await
-        {
-            let mut subscribed_robots = HashSet::new();
+            let health_client = client.clone();
+            let health_flag = connection_active.clone();
+            let health_cancel = connection_requested.clone();
 
-            loop {
-                let msg = discovery_sub.next().await;
+            spawn_network_task(async move {
+                loop {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
 
-                if !connection_requested.load(Ordering::Relaxed) {
-                    println!("Disconnecting from rosbridge discovery stream.");
-                    break;
-                }
-
-                for p in msg.participants {
-                    if subscribed_robots.contains(&p.name) {
-                        continue;
+                    if !health_cancel.load(Ordering::Relaxed)
+                        || !health_flag.load(Ordering::Relaxed)
+                    {
+                        break;
                     }
-                    subscribed_robots.insert(p.name.clone());
 
-                    println!("Subscribing to: {}", p.name);
+                    if health_client
+                        .subscribe::<ParticipantList>("/destination/discovery")
+                        .await
+                        .is_err()
+                    {
+                        println!("Heartbeat failed! rosbridge connection lost.");
+                        health_flag.store(false, Ordering::Relaxed);
+                        break;
+                    }
+                }
+            });
 
-                    for spawner in &registry.spawners {
-                        spawner(p.name.clone(), client.clone(), connection_requested.clone());
+            if let Ok(discovery_sub) = client
+                .subscribe::<ParticipantList>("/destination/discovery")
+                .await
+            {
+                let mut subscribed_robots = HashSet::new();
+
+                loop {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let msg = tokio::select! {
+                        msg = discovery_sub.next() => msg,
+                        _ = wait_until_inactive(&connection_active) => break,
+                    };
+                    #[cfg(target_arch = "wasm32")]
+                    let msg = discovery_sub.next().await;
+
+                    if !connection_requested.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
+                        println!("Disconnecting from rosbridge discovery stream.");
+                        break;
+                    }
+
+                    for p in msg.participants {
+                        if subscribed_robots.contains(&p.name) {
+                            continue;
+                        }
+                        subscribed_robots.insert(p.name.clone());
+
+                        println!("Subscribing to: {}", p.name);
+
+                        for spawner in &registry.spawners {
+                            spawner(p.name.clone(), client.clone(), connection_active.clone());
+                        }
                     }
                 }
             }
+
+            connection_active.store(false, Ordering::Relaxed);
+            println!("Connection to server lost. Attempting to reconnect...");
+        } else {
+            connection_active.store(false, Ordering::Relaxed);
         }
 
-        connection_active.store(false, Ordering::Relaxed);
-    } else {
-        println!("Failed to connect to rosbridge WebSocket at {}", url);
-        connection_active.store(false, Ordering::Relaxed);
+        if connection_requested.load(Ordering::Relaxed) {
+            #[cfg(not(target_arch = "wasm32"))]
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
     }
+
+    println!("User disconnected. Shutting down network thread.");
+    connection_active.store(false, Ordering::Relaxed);
 }
