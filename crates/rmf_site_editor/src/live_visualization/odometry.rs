@@ -2,14 +2,15 @@ use bevy::prelude::*;
 use crossbeam_channel::Sender;
 use rmf_site_format::{Angle, NameInSite, Pose, Rotation};
 use rmf_site_msgs::nav_msgs::msg::Odometry;
-use rmf_site_picking::Selectable;
 use roslibrust::rosbridge::ClientHandle;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::live_state::LiveStreamState;
-use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
+use super::network_client::{
+    spawn_network_task, wait_until_inactive, LiveStreamHandler, VisualizationStreamChannel,
+};
 
 #[derive(Debug, Clone)]
 pub struct LiveEventOdom {
@@ -25,16 +26,22 @@ impl LiveStreamHandler for LiveEventOdom {
         robot_name: String,
         client: ClientHandle,
         sender: Sender<Self>,
-        connection_requested: Arc<AtomicBool>,
+        connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/odom", robot_name);
 
         let task = async move {
             if let Ok(odom_sub) = client.subscribe::<Odometry>(&topic_name).await {
                 loop {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let odom = tokio::select! {
+                        msg = odom_sub.next() => msg,
+                        _ = wait_until_inactive(&connection_active) => break,
+                    };
+                    #[cfg(target_arch = "wasm32")]
                     let odom = odom_sub.next().await;
 
-                    if !connection_requested.load(Ordering::Relaxed) {
+                    if !connection_active.load(Ordering::Relaxed) {
                         break;
                     }
 
@@ -75,10 +82,17 @@ pub fn update_live_robots(
     channel: Res<VisualizationStreamChannel<LiveEventOdom>>,
     mut commands: Commands,
     mut robot_map: ResMut<LiveRobotsMap>,
-    mut live_query: Query<(&LiveRobotMarker, &mut Pose)>,
+    mut live_query: Query<(Entity, &LiveRobotMarker, &mut Pose)>,
     mut untracked_query: Query<(Entity, &NameInSite, &mut Pose), Without<LiveRobotMarker>>,
 ) {
-    if !state.connection_requested.load(Ordering::Relaxed) {
+    if !state.connection_active.load(Ordering::Relaxed) {
+        if !robot_map.0.is_empty() {
+            robot_map.0.clear();
+
+            for (entity, _, _) in live_query.iter_mut() {
+                commands.entity(entity).remove::<LiveRobotMarker>();
+            }
+        }
         return;
     }
 
@@ -86,7 +100,7 @@ pub fn update_live_robots(
         let mut found = false;
 
         // Find existing robot
-        for (robot, mut pose) in live_query.iter_mut() {
+        for (_, robot, mut pose) in live_query.iter_mut() {
             if robot.name == event.name {
                 pose.trans = [event.x, event.y, event.z];
                 pose.rot = Rotation::Yaw(Angle::Rad(event.yaw).match_variant(pose.rot.yaw()));

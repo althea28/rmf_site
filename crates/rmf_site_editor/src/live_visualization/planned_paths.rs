@@ -7,7 +7,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use super::live_state::LiveStreamState;
-use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
+use super::network_client::{
+    spawn_network_task, wait_until_inactive, LiveStreamHandler, VisualizationStreamChannel,
+};
 use super::odometry::{LiveRobotMarker, LiveRobotsMap};
 
 pub const PLANNED_PATH_Z_OFFSET: f32 = 0.05;
@@ -46,16 +48,22 @@ impl LiveStreamHandler for LiveEventPlan {
         robot_name: String,
         client: ClientHandle,
         sender: Sender<Self>,
-        connection_requested: Arc<AtomicBool>,
+        connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan", robot_name);
 
         let task = async move {
             if let Ok(plan_sub) = client.subscribe::<Plan>(&topic_name).await {
                 loop {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let plan_msg = tokio::select! {
+                        msg = plan_sub.next() => msg,
+                        _ = wait_until_inactive(&connection_active) => break,
+                    };
+                    #[cfg(target_arch = "wasm32")]
                     let plan_msg = plan_sub.next().await;
 
-                    if !connection_requested.load(Ordering::Relaxed) {
+                    if !connection_active.load(Ordering::Relaxed) {
                         break;
                     }
 
@@ -110,16 +118,22 @@ impl LiveStreamHandler for LiveEventProgress {
         robot_name: String,
         client: ClientHandle,
         sender: Sender<Self>,
-        connection_requested: Arc<AtomicBool>,
+        connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan/progress", robot_name);
 
         let task = async move {
             if let Ok(prog_sub) = client.subscribe::<Progress>(&topic_name).await {
                 loop {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let prog_msg = tokio::select! {
+                        msg = prog_sub.next() => msg,
+                        _ = wait_until_inactive(&connection_active) => break,
+                    };
+                    #[cfg(target_arch = "wasm32")]
                     let prog_msg = prog_sub.next().await;
 
-                    if !connection_requested.load(Ordering::Relaxed) {
+                    if !connection_active.load(Ordering::Relaxed) {
                         break;
                     }
 
@@ -168,7 +182,7 @@ pub fn update_live_paths(
     robot_query: Query<&Transform, With<LiveRobotMarker>>,
     mut gizmos: Gizmos,
 ) {
-    if !state.connection_requested.load(Ordering::Relaxed) {
+    if !state.connection_active.load(Ordering::Relaxed) {
         path_state.0.clear();
         return;
     }
@@ -228,23 +242,26 @@ pub fn update_live_paths(
             }
         }
 
-        if let Some(start_pos) = robot_pos {
-            let final_target_idx = path_data
-                .target_waypoint
-                .min(path_data.waypoints.len().saturating_sub(1));
+        let start_pos = match robot_pos {
+            Some(pos) => pos,
+            None => continue,
+        };
 
-            // Draw line from robot's current position to the target waypoint, then along the path to the final waypoint.
-            if final_target_idx < path_data.waypoints.len() {
-                let mut points_to_draw = vec![start_pos];
-                points_to_draw.extend(
-                    path_data.waypoints[final_target_idx..]
-                        .iter()
-                        .map(|wp| wp.position),
-                );
+        let final_target_idx = path_data
+            .target_waypoint
+            .min(path_data.waypoints.len().saturating_sub(1));
 
-                if points_to_draw.len() > 1 {
-                    gizmos.linestrip(points_to_draw, PLANNED_PATH_COLOR);
-                }
+        // Draw line from robot's current position to the target waypoint, then along the path to the final waypoint.
+        if final_target_idx < path_data.waypoints.len() {
+            let mut points_to_draw = vec![start_pos];
+            points_to_draw.extend(
+                path_data.waypoints[final_target_idx..]
+                    .iter()
+                    .map(|wp| wp.position),
+            );
+
+            if points_to_draw.len() > 1 {
+                gizmos.linestrip(points_to_draw, PLANNED_PATH_COLOR);
             }
         }
 

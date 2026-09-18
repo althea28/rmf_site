@@ -129,32 +129,7 @@ fn egui_ui(
                                     live_stream_state.connection_active.clone(),
                                 );
 
-                                let (tx, rx) = tokio::sync::oneshot::channel();
-
-                                let request = ehttp::Request::get(&live_stream_state.site_url);
-                                ehttp::fetch(request, move |result| {
-                                    let _ = tx.send(result);
-                                });
-
                                 workspace_loader.load_site(async move {
-                                    if let Ok(Ok(response)) = rx.await {
-                                        if response.status != 200 {
-                                            println!(
-                                                "Backend returned Error {}: {}",
-                                                response.status, response.status_text
-                                            );
-                                            println!(
-                                                "Raw response: {}",
-                                                String::from_utf8_lossy(&response.bytes)
-                                            );
-                                            return Ok(LoadSite::blank_L1("live".to_owned(), None));
-                                        }
-
-                                        println!("Successfully downloaded site data from backend!");
-                                        return LoadSite::from_data(&response.bytes, None);
-                                    }
-
-                                    println!("Failed to reach backend, falling back to blank map.");
                                     Ok(LoadSite::blank_L1("live".to_owned(), None))
                                 });
                             }

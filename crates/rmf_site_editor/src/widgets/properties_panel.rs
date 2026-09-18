@@ -48,7 +48,7 @@ impl Default for PropertiesPanelState {
 pub struct PropertiesTabViewer<'a> {
     pub world: &'a mut World,
     pub settings: PanelSettings,
-    pub is_connected: bool,
+    pub is_streaming_mode: bool,
 }
 
 impl<'a> TabViewer for PropertiesTabViewer<'a> {
@@ -75,7 +75,7 @@ impl<'a> TabViewer for PropertiesTabViewer<'a> {
     }
 
     fn ui(&mut self, ui: &mut Ui, tab: &mut Self::Tab) {
-        if self.is_connected {
+        if self.is_streaming_mode {
             ui.disable();
         }
 
@@ -234,14 +234,14 @@ pub fn show_properties_panel(
                     .get::<PanelSettings>(id)
                     .copied()
                     .unwrap_or(PanelSettings::right());
-                let is_connected = world
+                let is_streaming_mode = world
                     .get_resource::<LiveStreamState>()
-                    .map(|s| s.connection_active.load(Ordering::Relaxed))
+                    .map(|s| s.connection_requested.load(Ordering::Relaxed))
                     .unwrap_or(false);
                 let mut tab_viewer = PropertiesTabViewer {
                     world,
                     settings,
-                    is_connected,
+                    is_streaming_mode,
                 };
                 DockArea::new(&mut state.dock_state)
                     .style(style)

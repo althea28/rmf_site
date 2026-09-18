@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use rmf_site_egui::{HeaderPanel, HeaderTilePlugin};
 use std::sync::atomic::Ordering;
 
-use live_state::{LiveStreamState, LiveStreamStatusWidget};
+use live_state::{auto_fetch_site_on_connect, LiveStreamState, LiveStreamStatusWidget};
 use network_client::StreamPlugin;
 use odometry::{update_live_robots, LiveEventOdom, LiveRobotMarker, LiveRobotsMap};
 use planned_paths::{update_live_paths, LiveEventPlan, LiveEventProgress, LivePathsState};
@@ -34,6 +34,7 @@ impl Plugin for LiveVisualizationPlugin {
                 update_live_robots,
                 update_live_paths,
                 update_live_safe_zones,
+                auto_fetch_site_on_connect,
             ),
         )
         .add_systems(OnEnter(crate::AppState::MainMenu), disconnect_live_stream);
@@ -46,7 +47,7 @@ impl Plugin for LiveVisualizationPlugin {
 
 fn disconnect_live_stream(
     mut commands: Commands,
-    state: Res<LiveStreamState>,
+    mut state: ResMut<LiveStreamState>,
     mut robot_map: ResMut<LiveRobotsMap>,
     mut path_state: ResMut<LivePathsState>,
     mut safe_zones_state: ResMut<LiveSafeZoneState>,
@@ -55,6 +56,7 @@ fn disconnect_live_stream(
 ) {
     state.connection_requested.store(false, Ordering::Relaxed);
     state.connection_active.store(false, Ordering::Relaxed);
+    state.site_loaded = false;
     robot_map.0.clear();
     path_state.0.clear();
     safe_zones_state.0.clear();
