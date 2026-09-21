@@ -25,6 +25,7 @@ use std::borrow::Cow;
 #[derive(Component, Clone, Debug, Default)]
 pub struct Billboard {
     pub offset: Vec3,
+    pub hover_enabled: bool,
 }
 
 #[derive(Component, Clone, Debug)]
@@ -90,6 +91,26 @@ pub fn update_billboard_text_hover_visualisation(
         if let Ok((hovered, tooltip)) = query_tooltips.get(hovering) {
             if hovered.cue() {
                 tooltips.add(Cow::Owned(tooltip.0.clone()));
+            }
+        }
+    }
+}
+
+pub fn update_billboard_hover_visualization(
+    query_billboards: Query<
+        (&Hovered, &Billboard, &MeshMaterial3d<StandardMaterial>),
+        Changed<Hovered>,
+    >,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    for (hovered, billboard, billboard_material) in &query_billboards {
+        if billboard.hover_enabled {
+            if let Some(material) = materials.get_mut(&billboard_material.0) {
+                material.alpha_mode = if hovered.cue() {
+                    AlphaMode::Mask(0.1)
+                } else {
+                    AlphaMode::Blend
+                };
             }
         }
     }

@@ -45,9 +45,7 @@ pub struct BillboardMeshes {
 }
 
 #[derive(Component, Clone, Copy, Default, Debug)]
-pub struct LocationBillboardMarker {
-    pub hover_enabled: bool,
-}
+pub struct LocationBillboardMarker;
 
 // TODO(@mxgrey): Refactor this implementation with should_display_lane using traits and generics
 fn should_display_point(
@@ -279,10 +277,9 @@ pub fn update_location_for_changed_location_tags(
                     MeshMaterial3d(materials.add(new_material)),
                     Billboard {
                         offset: BILLBOARD_EMPTY_OFFSET,
-                    },
-                    LocationBillboardMarker {
                         hover_enabled: true,
                     },
+                    LocationBillboardMarker,
                 ));
                 commands.entity(e).add_child(id);
                 billboard_meshes.empty_billboard = Some(id);
@@ -297,10 +294,9 @@ pub fn update_location_for_changed_location_tags(
                     MeshMaterial3d(assets.base_billboard_material.clone()),
                     Billboard {
                         offset: BILLBOARD_BASE_OFFSET,
-                    },
-                    LocationBillboardMarker {
                         hover_enabled: false,
                     },
+                    LocationBillboardMarker,
                 ));
                 commands.entity(e).add_child(id);
                 billboard_meshes.base = Some(id);
@@ -359,10 +355,11 @@ pub fn update_location_for_changed_location_tags(
                 // A separate copy of the material is created for each billboard
                 // because we adjust their alpha properties during interaction.
                 MeshMaterial3d(materials.add(new_material)),
-                Billboard { offset },
-                LocationBillboardMarker {
+                Billboard {
+                    offset,
                     hover_enabled: true,
                 },
+                LocationBillboardMarker,
                 BillboardTooltip(text),
             ));
 
@@ -408,10 +405,11 @@ pub fn update_location_for_changed_location_tags(
                         // A separate copy of the material is created for each billboard
                         // because we adjust their alpha properties during interaction.
                         MeshMaterial3d(materials.add(material)),
-                        Billboard { offset },
-                        LocationBillboardMarker {
+                        Billboard {
+                            offset,
                             hover_enabled: true,
                         },
+                        LocationBillboardMarker,
                         BillboardTooltip(mutex_group_text),
                         ChildOf(e),
                     ))

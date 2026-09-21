@@ -85,19 +85,14 @@ fn update_billboard_visual_cues(
     }
 }
 
-pub fn update_billboard_hover_visualization(
+pub fn update_location_billboard_hover_bubbling(
     query_billboards: Query<
+        (Entity, &ChildOf, &Hovered, &Selected),
         (
-            Entity,
-            &ChildOf,
-            &Hovered,
-            &Selected,
-            &LocationBillboardMarker,
-            &mut MeshMaterial3d<StandardMaterial>,
+            With<LocationBillboardMarker>,
+            Or<(Changed<Hovered>, Changed<Selected>)>,
         ),
-        Or<(Changed<Hovered>, Changed<Selected>)>,
     >,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut parents: Query<
         (&mut Hovered, &mut Selected),
         (
@@ -106,17 +101,7 @@ pub fn update_billboard_hover_visualization(
         ),
     >,
 ) {
-    for (e, parent, hovered, selected, marker, billboard_material) in query_billboards {
-        if marker.hover_enabled {
-            if let Some(material) = materials.get_mut(&billboard_material.0) {
-                material.alpha_mode = if hovered.cue() {
-                    AlphaMode::Mask(0.1)
-                } else {
-                    AlphaMode::Blend
-                };
-            }
-        }
-
+    for (e, parent, hovered, selected) in &query_billboards {
         if let Ok((mut parent_hovered, mut parent_selected)) = parents.get_mut(parent.0) {
             if hovered.cue() {
                 parent_hovered.support_hovering.insert(e);
