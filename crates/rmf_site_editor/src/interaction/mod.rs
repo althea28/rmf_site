@@ -233,7 +233,7 @@ impl Plugin for InteractionPlugin {
             .add_systems(
                 Update,
                 (
-                    update_billboard_transforms,
+                    update_billboard_location,
                     update_billboard_text_hover_visualisation,
                     update_billboard_hover_visualization,
                     update_location_billboard_hover_bubbling,

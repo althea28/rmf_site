@@ -263,44 +263,40 @@ pub fn update_location_for_changed_location_tags(
             }
         }
 
-        if no_billboards {
-            if billboard_meshes.empty_billboard.is_none() {
-                // If no location tags exist and no empty billboard marker spawned, spawn empty billboard marker
-                let id = commands.spawn_empty().id();
-                let new_material = materials
-                    .get(&assets.empty_billboard_material)
-                    .unwrap()
-                    .clone();
+        if no_billboards && billboard_meshes.empty_billboard.is_none() {
+            // If no location tags exist and no empty billboard marker spawned, spawn empty billboard marker
+            let id = commands.spawn_empty().id();
+            let new_material = materials
+                .get(&assets.empty_billboard_material)
+                .unwrap()
+                .clone();
 
-                commands.entity(id).insert((
-                    Mesh3d(assets.billboard_mesh.clone()),
-                    MeshMaterial3d(materials.add(new_material)),
-                    Billboard {
-                        offset: BILLBOARD_EMPTY_OFFSET,
-                        hover_enabled: true,
-                    },
-                    LocationBillboardMarker,
-                ));
-                commands.entity(e).add_child(id);
-                billboard_meshes.empty_billboard = Some(id);
-            }
-        } else {
-            if billboard_meshes.base.is_none() {
-                // If location tags exist and no billboard base spawned, spawn billboard base
-                let id = commands.spawn_empty().id();
+            commands.entity(id).insert((
+                Mesh3d(assets.billboard_mesh.clone()),
+                MeshMaterial3d(materials.add(new_material)),
+                Billboard {
+                    offset: BILLBOARD_EMPTY_OFFSET,
+                    hover_enabled: true,
+                },
+                LocationBillboardMarker,
+            ));
+            commands.entity(e).add_child(id);
+            billboard_meshes.empty_billboard = Some(id);
+        } else if !no_billboards && billboard_meshes.base.is_none() {
+            // If location tags exist and no billboard base spawned, spawn billboard base
+            let id = commands.spawn_empty().id();
 
-                commands.entity(id).insert((
-                    Mesh3d(assets.billboard_base_mesh.clone()),
-                    MeshMaterial3d(assets.base_billboard_material.clone()),
-                    Billboard {
-                        offset: BILLBOARD_BASE_OFFSET,
-                        hover_enabled: false,
-                    },
-                    LocationBillboardMarker,
-                ));
-                commands.entity(e).add_child(id);
-                billboard_meshes.base = Some(id);
-            }
+            commands.entity(id).insert((
+                Mesh3d(assets.billboard_base_mesh.clone()),
+                MeshMaterial3d(assets.base_billboard_material.clone()),
+                Billboard {
+                    offset: BILLBOARD_BASE_OFFSET,
+                    hover_enabled: false,
+                },
+                LocationBillboardMarker,
+            ));
+            commands.entity(e).add_child(id);
+            billboard_meshes.base = Some(id);
         }
 
         let mut offset = BILLBOARD_MARGIN - BILLBOARD_BASE_OFFSET;

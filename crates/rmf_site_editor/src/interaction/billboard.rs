@@ -53,7 +53,7 @@ fn new_billboard_position(billboard_vec: Vec3, camera_vec: Vec3) -> Vec3 {
     ad_vec * radius
 }
 
-pub fn update_billboard_transforms(
+pub fn update_billboard_location(
     mut query_mesh: Query<(&mut Transform, &Billboard)>,
     query_cameras: Query<(&Projection, &GlobalTransform)>,
     active_camera: ActiveCameraQuery,
