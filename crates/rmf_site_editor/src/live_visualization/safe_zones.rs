@@ -15,8 +15,10 @@ use super::network_client::{
 use super::odometry::LiveRobotMarker;
 use super::planned_paths::LivePathsState;
 
+const SAFE_ZONE_SCALE: i32 = 8;
 const SAFE_ZONE_Z_OFFSET: f32 = 0.045;
 const SAFE_ZONE_RGBA: [u8; 4] = [0, 255, 0, 50];
+const SAFE_ZONE_OUTLINE_RGBA: [u8; 4] = [0, 255, 0, 120];
 
 #[derive(Debug, Clone)]
 pub struct LiveEventSafeZone {
@@ -116,17 +118,11 @@ pub fn update_live_safe_zones(
         latest_events.insert(event.name.clone(), event);
     }
 
-    // Convert costmap array to image texture
+    // Convert costmap array to image metadata
     for (_, event) in latest_events {
-        let rgba_data = convert_costmap_to_texture(&event);
+        let (image_size, rgba_data) = convert_costmap_to_texture(&event);
 
         // Scale image to in-world dimensions
-        let image_size = Extent3d {
-            width: event.size_x,
-            height: event.size_y,
-            depth_or_array_layers: 1,
-        };
-
         let physical_width = event.size_x as f32 * event.resolution;
         let physical_height = event.size_y as f32 * event.resolution;
 
@@ -218,24 +214,57 @@ pub fn update_live_safe_zones(
     }
 }
 
-fn convert_costmap_to_texture(event: &LiveEventSafeZone) -> Vec<u8> {
-    let mut rgba_data = vec![0u8; (event.size_x * event.size_y * 4) as usize];
+fn convert_costmap_to_texture(event: &LiveEventSafeZone) -> (Extent3d, Vec<u8>) {
+    // Multiply costmap dimensions by constant scale factor to increase resolution
+    let scaled_size_x = (event.size_x as i32) * SAFE_ZONE_SCALE;
+    let scaled_size_y = (event.size_y as i32) * SAFE_ZONE_SCALE;
 
-    for y in 0..event.size_y {
-        for x in 0..event.size_x {
-            let ros_idx = (y * event.size_x + x) as usize;
+    let mut rgba_data = vec![0u8; (scaled_size_x * scaled_size_y * 4) as usize];
 
-            let new_y = event.size_y - 1 - y;
-            let pixel_idx = (new_y * event.size_x + x) as usize * 4;
+    let is_safe_space = |scaled_x: i32, scaled_y: i32| -> bool {
+        if scaled_x < 0 || scaled_x >= scaled_size_x || scaled_y < 0 || scaled_y >= scaled_size_y {
+            // If out of bounds, it is not free space
+            false
+        } else {
+            // Checks if pixel is in safe space by mapping back to raw event data
+            let orig_x = (scaled_x / SAFE_ZONE_SCALE) as usize;
+            let orig_y = (scaled_y / SAFE_ZONE_SCALE) as usize;
+            let ros_idx = orig_y * (event.size_x as usize) + orig_x;
+            event.data[ros_idx] == 0
+        }
+    };
 
-            let cost = event.data[ros_idx];
-            if cost == 0 {
-                rgba_data[pixel_idx..pixel_idx + 4].copy_from_slice(&SAFE_ZONE_RGBA);
+    for y in 0..scaled_size_y {
+        for x in 0..scaled_size_x {
+            if is_safe_space(x, y) {
+                let is_border = !is_safe_space(x - 1, y)
+                    || !is_safe_space(x + 1, y)
+                    || !is_safe_space(x, y - 1)
+                    || !is_safe_space(x, y + 1)
+                    || !is_safe_space(x - 1, y - 1)
+                    || !is_safe_space(x + 1, y - 1)
+                    || !is_safe_space(x - 1, y + 1)
+                    || !is_safe_space(x + 1, y + 1);
+
+                let new_y = scaled_size_y - 1 - y;
+                let pixel_idx = (new_y * scaled_size_x + x) as usize * 4;
+
+                if is_border {
+                    rgba_data[pixel_idx..pixel_idx + 4].copy_from_slice(&SAFE_ZONE_OUTLINE_RGBA);
+                } else {
+                    rgba_data[pixel_idx..pixel_idx + 4].copy_from_slice(&SAFE_ZONE_RGBA);
+                }
             }
         }
     }
 
-    rgba_data
+    let image_size = Extent3d {
+        width: scaled_size_x as u32,
+        height: scaled_size_y as u32,
+        depth_or_array_layers: 1,
+    };
+
+    (image_size, rgba_data)
 }
 
 fn get_safezone_target_position(
