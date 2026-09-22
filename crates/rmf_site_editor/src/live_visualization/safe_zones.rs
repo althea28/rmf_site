@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 use bevy::render::render_asset::RenderAssetUsages;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use crossbeam_channel::Sender;
 use rmf_site_msgs::rmf_prototype_msgs::msg::SafeZone;
 use roslibrust::rosbridge::ClientHandle;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 use super::live_state::LiveStreamState;
 use super::network_client::{
@@ -35,7 +35,8 @@ impl LiveStreamHandler for LiveEventSafeZone {
     fn spawn_stream(
         robot_name: String,
         client: ClientHandle,
-        sender: Sender<Self>,
+        sender: UnboundedSender<Self>,
+        connect_flag: Arc<AtomicBool>,
         connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan/safe_zone", robot_name);
@@ -43,15 +44,20 @@ impl LiveStreamHandler for LiveEventSafeZone {
         let task = async move {
             if let Ok(sz_sub) = client.subscribe::<SafeZone>(&topic_name).await {
                 loop {
-                    #[cfg(not(target_arch = "wasm32"))]
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
+                        break;
+                    }
+
                     let sz_msg = tokio::select! {
                         msg = sz_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,
                     };
-                    #[cfg(target_arch = "wasm32")]
-                    let sz_msg = sz_sub.next().await;
 
-                    if !connection_active.load(Ordering::Relaxed) {
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
                         break;
                     }
 
@@ -85,7 +91,7 @@ pub struct SafeZoneMarker {
 
 pub fn update_live_safe_zones(
     state: Res<LiveStreamState>,
-    channel: Res<VisualizationStreamChannel<LiveEventSafeZone>>,
+    mut channel: ResMut<VisualizationStreamChannel<LiveEventSafeZone>>,
     path_state: Res<LivePathsState>,
     mut commands: Commands,
     mut safe_zones_state: ResMut<LiveSafeZoneState>,

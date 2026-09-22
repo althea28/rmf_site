@@ -1,9 +1,9 @@
 use bevy::prelude::*;
-use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use rmf_site_msgs::rmf_prototype_msgs::msg::ParticipantList;
 use roslibrust::rosbridge::ClientHandle;
@@ -12,15 +12,16 @@ const TIMEOUT_SECONDS: u64 = 2;
 
 #[derive(Resource)]
 pub struct VisualizationStreamChannel<T> {
-    pub sender: Sender<T>,
-    pub receiver: Receiver<T>,
+    pub sender: UnboundedSender<T>,
+    pub receiver: UnboundedReceiver<T>,
 }
 
 pub trait LiveStreamHandler: Send + Sync + 'static {
     fn spawn_stream(
         robot_name: String,
         client: ClientHandle,
-        sender: Sender<Self>,
+        sender: UnboundedSender<Self>,
+        connect_flag: Arc<AtomicBool>,
         connection_active: Arc<AtomicBool>,
     ) where
         Self: Sized;
@@ -28,7 +29,8 @@ pub trait LiveStreamHandler: Send + Sync + 'static {
 
 #[derive(Resource, Clone, Default)]
 pub struct StreamRegistry {
-    pub spawners: Vec<Arc<dyn Fn(String, ClientHandle, Arc<AtomicBool>) + Send + Sync>>,
+    pub spawners:
+        Vec<Arc<dyn Fn(String, ClientHandle, Arc<AtomicBool>, Arc<AtomicBool>) + Send + Sync>>,
 }
 
 pub struct StreamPlugin<T> {
@@ -45,7 +47,7 @@ impl<T> Default for StreamPlugin<T> {
 
 impl<T: LiveStreamHandler> Plugin for StreamPlugin<T> {
     fn build(&self, app: &mut App) {
-        let (tx, rx) = unbounded();
+        let (tx, rx) = unbounded_channel();
         app.insert_resource(VisualizationStreamChannel::<T> {
             sender: tx.clone(),
             receiver: rx,
@@ -59,39 +61,50 @@ impl<T: LiveStreamHandler> Plugin for StreamPlugin<T> {
         app.world_mut()
             .resource_mut::<StreamRegistry>()
             .spawners
-            .push(Arc::new(move |robot_name, client, connection_active| {
-                T::spawn_stream(robot_name, client, tx_clone.clone(), connection_active);
-            }));
+            .push(Arc::new(
+                move |robot_name, client, connect_flag, connection_active| {
+                    T::spawn_stream(
+                        robot_name,
+                        client,
+                        tx_clone.clone(),
+                        connect_flag,
+                        connection_active,
+                    );
+                },
+            ));
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn spawn_network_task<F>(future: F)
 where
     F: std::future::Future<Output = ()> + Send + 'static,
 {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            handle.spawn(future);
-        } else {
-            std::thread::spawn(move || {
-                let rt = match tokio::runtime::Builder::new_multi_thread()
-                    .enable_all()
-                    .build()
-                {
-                    Ok(rt) => rt,
-                    Err(e) => {
-                        eprintln!("Failed to initialize Tokio runtime: {e}");
-                        return;
-                    }
-                };
-                rt.block_on(future);
-            });
-        }
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        handle.spawn(future);
+    } else {
+        std::thread::spawn(move || {
+            let rt = match tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(e) => {
+                    eprintln!("Failed to initialize Tokio runtime: {e}");
+                    return;
+                }
+            };
+            rt.block_on(future);
+        });
     }
+}
 
-    #[cfg(target_arch = "wasm32")]
-    bevy::tasks::IoTaskPool::get().spawn(future).detach();
+#[cfg(target_arch = "wasm32")]
+pub fn spawn_network_task<F>(future: F)
+where
+    F: std::future::Future<Output = ()> + 'static,
+{
+    wasm_bindgen_futures::spawn_local(future);
 }
 
 // On losing connection, this function kills all zombie tasks
@@ -99,8 +112,9 @@ pub async fn wait_until_inactive(connection_active: &Arc<AtomicBool>) {
     while connection_active.load(Ordering::Relaxed) {
         #[cfg(not(target_arch = "wasm32"))]
         tokio::time::sleep(std::time::Duration::from_secs(TIMEOUT_SECONDS)).await;
+
         #[cfg(target_arch = "wasm32")]
-        break;
+        gloo_timers::future::sleep(std::time::Duration::from_secs(TIMEOUT_SECONDS)).await;
     }
 }
 
@@ -144,6 +158,10 @@ async fn run_rosbridge_loop(
                     #[cfg(not(target_arch = "wasm32"))]
                     tokio::time::sleep(std::time::Duration::from_secs(TIMEOUT_SECONDS)).await;
 
+                    #[cfg(target_arch = "wasm32")]
+                    gloo_timers::future::sleep(std::time::Duration::from_secs(TIMEOUT_SECONDS))
+                        .await;
+
                     if !health_cancel.load(Ordering::Relaxed)
                         || !health_flag.load(Ordering::Relaxed)
                     {
@@ -169,13 +187,17 @@ async fn run_rosbridge_loop(
                 let mut subscribed_robots = HashSet::new();
 
                 loop {
-                    #[cfg(not(target_arch = "wasm32"))]
+                    if !connection_requested.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
+                        println!("Disconnecting from rosbridge discovery stream.");
+                        break;
+                    }
+
                     let msg = tokio::select! {
                         msg = discovery_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,
                     };
-                    #[cfg(target_arch = "wasm32")]
-                    let msg = discovery_sub.next().await;
 
                     if !connection_requested.load(Ordering::Relaxed)
                         || !connection_active.load(Ordering::Relaxed)
@@ -193,7 +215,12 @@ async fn run_rosbridge_loop(
                         println!("Subscribing to: {}", p.name);
 
                         for spawner in &registry.spawners {
-                            spawner(p.name.clone(), client.clone(), connection_active.clone());
+                            spawner(
+                                p.name.clone(),
+                                client.clone(),
+                                connection_requested.clone(),
+                                connection_active.clone(),
+                            );
                         }
                     }
                 }
@@ -208,6 +235,9 @@ async fn run_rosbridge_loop(
         if connection_requested.load(Ordering::Relaxed) {
             #[cfg(not(target_arch = "wasm32"))]
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+            #[cfg(target_arch = "wasm32")]
+            gloo_timers::future::sleep(std::time::Duration::from_secs(2)).await;
         }
     }
 

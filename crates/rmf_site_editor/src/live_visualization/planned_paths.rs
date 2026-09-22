@@ -1,10 +1,10 @@
 use bevy::prelude::*;
-use crossbeam_channel::Sender;
 use rmf_site_msgs::rmf_prototype_msgs::msg::{Plan, Progress};
 use roslibrust::rosbridge::ClientHandle;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 use super::live_state::LiveStreamState;
 use super::network_client::{
@@ -47,7 +47,8 @@ impl LiveStreamHandler for LiveEventPlan {
     fn spawn_stream(
         robot_name: String,
         client: ClientHandle,
-        sender: Sender<Self>,
+        sender: UnboundedSender<Self>,
+        connect_flag: Arc<AtomicBool>,
         connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan", robot_name);
@@ -55,15 +56,20 @@ impl LiveStreamHandler for LiveEventPlan {
         let task = async move {
             if let Ok(plan_sub) = client.subscribe::<Plan>(&topic_name).await {
                 loop {
-                    #[cfg(not(target_arch = "wasm32"))]
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
+                        break;
+                    }
+
                     let plan_msg = tokio::select! {
                         msg = plan_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,
                     };
-                    #[cfg(target_arch = "wasm32")]
-                    let plan_msg = plan_sub.next().await;
 
-                    if !connection_active.load(Ordering::Relaxed) {
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
                         break;
                     }
 
@@ -117,7 +123,8 @@ impl LiveStreamHandler for LiveEventProgress {
     fn spawn_stream(
         robot_name: String,
         client: ClientHandle,
-        sender: Sender<Self>,
+        sender: UnboundedSender<Self>,
+        connect_flag: Arc<AtomicBool>,
         connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan/progress", robot_name);
@@ -125,15 +132,20 @@ impl LiveStreamHandler for LiveEventProgress {
         let task = async move {
             if let Ok(prog_sub) = client.subscribe::<Progress>(&topic_name).await {
                 loop {
-                    #[cfg(not(target_arch = "wasm32"))]
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
+                        break;
+                    }
+
                     let prog_msg = tokio::select! {
                         msg = prog_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,
                     };
-                    #[cfg(target_arch = "wasm32")]
-                    let prog_msg = prog_sub.next().await;
 
-                    if !connection_active.load(Ordering::Relaxed) {
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
                         break;
                     }
 
@@ -175,8 +187,8 @@ impl PlannedPathData {
 pub fn update_live_paths(
     state: Res<LiveStreamState>,
     time: Res<Time>,
-    plan_channel: Res<VisualizationStreamChannel<LiveEventPlan>>,
-    progress_channel: Res<VisualizationStreamChannel<LiveEventProgress>>,
+    mut plan_channel: ResMut<VisualizationStreamChannel<LiveEventPlan>>,
+    mut progress_channel: ResMut<VisualizationStreamChannel<LiveEventProgress>>,
     mut path_state: ResMut<LivePathsState>,
     robot_map: Res<LiveRobotsMap>,
     robot_query: Query<&Transform, With<LiveRobotMarker>>,

@@ -4,9 +4,13 @@ use bevy_egui::egui;
 use rmf_site_egui::{Tile, WidgetSystem};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedReceiver;
 
 pub const DEFAULT_CONNECTION_URL: &str = "ws://127.0.0.1:9090";
 pub const DEFAULT_SITE_DATA_URL: &str = "http://127.0.0.1:8080/site_file";
+
+#[derive(Resource)]
+pub struct SiteFetchReceiver(pub UnboundedReceiver<Vec<u8>>);
 
 #[derive(Resource)]
 pub struct LiveStreamState {
@@ -29,6 +33,7 @@ impl Default for LiveStreamState {
     }
 }
 
+// Holds receiver to receive HTTP site data asynchronously
 #[derive(SystemParam)]
 pub struct LiveStreamStatusWidget<'w> {
     state: Res<'w, LiveStreamState>,
@@ -52,42 +57,39 @@ impl<'w> WidgetSystem<Tile> for LiveStreamStatusWidget<'w> {
     }
 }
 
-pub fn auto_fetch_site_on_connect(
-    mut state: ResMut<LiveStreamState>,
-    mut workspace_loader: crate::WorkspaceLoader,
-) {
+pub fn auto_fetch_site_on_connect(mut state: ResMut<LiveStreamState>, mut commands: Commands) {
     let is_currently_active = state.connection_active.load(Ordering::Relaxed);
 
     if is_currently_active && !state.site_loaded {
         state.site_loaded = true;
 
-        println!(
-            "Network connected! Automatically downloading site data from: {}",
-            state.site_url
-        );
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        commands.insert_resource(SiteFetchReceiver(rx));
 
-        let (tx, rx) = tokio::sync::oneshot::channel();
         let request = ehttp::Request::get(&state.site_url);
-
         ehttp::fetch(request, move |result| {
-            let _ = tx.send(result);
-        });
-
-        workspace_loader.load_site(async move {
-            if let Ok(Ok(response)) = rx.await {
+            if let Ok(response) = result {
                 if response.status == 200 {
-                    println!("Successfully downloaded and applied live site map!");
-                    return crate::site::LoadSite::from_data(&response.bytes, None);
-                } else {
-                    println!(
-                        "Backend returned HTTP Error {}: {}",
-                        response.status, response.status_text
-                    );
+                    let _ = tx.send(response.bytes);
                 }
-            } else {
-                println!("Failed to download site map from backend.");
             }
-            Err(crate::site::LoadSiteError::UnknownDataFormat)
         });
+    }
+}
+
+// Spawns LoadSite component once all site data bytes are ready
+pub fn process_site_download(
+    mut commands: Commands,
+    receiver: Option<ResMut<SiteFetchReceiver>>,
+    mut load_site: EventWriter<crate::site::LoadSite>,
+) {
+    if let Some(mut rx) = receiver {
+        if let Ok(bytes) = rx.0.try_recv() {
+            if let Ok(mut site) = crate::site::LoadSite::from_data(&bytes, None) {
+                site.focus = true;
+                load_site.write(site);
+            }
+            commands.remove_resource::<SiteFetchReceiver>();
+        }
     }
 }

@@ -5955,6 +5955,7 @@ dependencies = [
  "file_diff",
  "futures-lite 1.13.0",
  "geo",
+ "gloo-timers",
  "gz-fuel",
  "image",
  "itertools 0.11.0",
@@ -5987,6 +5988,7 @@ dependencies = [
  "utm",
  "uuid",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
  "web-time",
 ]

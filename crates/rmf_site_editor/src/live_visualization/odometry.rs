@@ -1,11 +1,11 @@
 use bevy::prelude::*;
-use crossbeam_channel::Sender;
 use rmf_site_format::{Angle, NameInSite, Pose, Rotation};
 use rmf_site_msgs::nav_msgs::msg::Odometry;
 use roslibrust::rosbridge::ClientHandle;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 use super::live_state::LiveStreamState;
 use super::network_client::{
@@ -25,7 +25,8 @@ impl LiveStreamHandler for LiveEventOdom {
     fn spawn_stream(
         robot_name: String,
         client: ClientHandle,
-        sender: Sender<Self>,
+        sender: UnboundedSender<Self>,
+        connect_flag: Arc<AtomicBool>,
         connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/odom", robot_name);
@@ -33,15 +34,20 @@ impl LiveStreamHandler for LiveEventOdom {
         let task = async move {
             if let Ok(odom_sub) = client.subscribe::<Odometry>(&topic_name).await {
                 loop {
-                    #[cfg(not(target_arch = "wasm32"))]
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
+                        break;
+                    }
+
                     let odom = tokio::select! {
                         msg = odom_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,
                     };
-                    #[cfg(target_arch = "wasm32")]
-                    let odom = odom_sub.next().await;
 
-                    if !connection_active.load(Ordering::Relaxed) {
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
                         break;
                     }
 
@@ -79,19 +85,16 @@ pub struct LiveRobotsMap(pub HashMap<String, Entity>);
 
 pub fn update_live_robots(
     state: Res<LiveStreamState>,
-    channel: Res<VisualizationStreamChannel<LiveEventOdom>>,
+    mut channel: ResMut<VisualizationStreamChannel<LiveEventOdom>>,
     mut commands: Commands,
     mut robot_map: ResMut<LiveRobotsMap>,
     mut live_query: Query<(Entity, &LiveRobotMarker, &mut Pose)>,
     mut untracked_query: Query<(Entity, &NameInSite, &mut Pose), Without<LiveRobotMarker>>,
 ) {
     if !state.connection_active.load(Ordering::Relaxed) {
-        if !robot_map.0.is_empty() {
-            robot_map.0.clear();
-
-            for (entity, _, _) in live_query.iter_mut() {
-                commands.entity(entity).remove::<LiveRobotMarker>();
-            }
+        robot_map.0.clear();
+        for (entity, _, _) in live_query.iter_mut() {
+            commands.entity(entity).remove::<LiveRobotMarker>();
         }
         return;
     }
@@ -122,8 +125,10 @@ pub fn update_live_robots(
                 commands.entity(entity).insert(LiveRobotMarker {
                     name: event.name.clone(),
                 });
+
                 robot_map.0.insert(event.name.clone(), entity);
 
+                println!("Hooked onto existing site robot: {}", event.name);
                 found = true;
                 break;
             }
