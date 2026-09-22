@@ -28,6 +28,9 @@ pub use anchor::*;
 pub mod assets;
 pub use assets::*;
 
+pub mod billboard;
+pub use billboard::*;
+
 use rmf_site_camera::plugins::CameraSetupPlugin;
 
 pub mod category_visibility;
@@ -233,6 +236,7 @@ impl Plugin for InteractionPlugin {
                     update_billboard_location,
                     update_billboard_text_hover_visualisation,
                     update_billboard_hover_visualization,
+                    update_location_billboard_hover_bubbling,
                 )
                     .run_if(in_state(InteractionState::Enable)),
             )

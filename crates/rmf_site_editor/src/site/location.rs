@@ -15,7 +15,12 @@
  *
 */
 
-use crate::{issue::*, layers::ZLayer, site::*};
+use crate::{
+    interaction::billboard::{Billboard, BillboardTooltip},
+    issue::*,
+    layers::ZLayer,
+    site::*,
+};
 use bevy::{
     ecs::{hierarchy::ChildOf, relationship::AncestorIter},
     prelude::*,
@@ -39,12 +44,8 @@ pub struct BillboardMeshes {
     pub empty_billboard: Option<Entity>,
 }
 
-#[derive(Component, Clone, Debug)]
-pub struct BillboardMarker {
-    pub caption_text: Option<String>,
-    pub offset: Vec3,
-    pub hover_enabled: bool,
-}
+#[derive(Component, Clone, Copy, Default, Debug)]
+pub struct LocationBillboardMarker;
 
 // TODO(@mxgrey): Refactor this implementation with should_display_lane using traits and generics
 fn should_display_point(
@@ -192,7 +193,10 @@ pub fn update_location_for_changed_location_tags(
         ),
         Or<(Changed<LocationTags>, Changed<Affiliation<Entity>>)>,
     >,
-    mut billboards: Query<&mut BillboardMarker, With<BillboardMarker>>,
+    mut billboards: Query<
+        (&mut Billboard, Option<&mut BillboardTooltip>),
+        With<LocationBillboardMarker>,
+    >,
     mutex_groups: Query<&NameInSite, (With<MutexMarker>, With<Group>)>,
     assets: Res<SiteAssets>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -270,26 +274,26 @@ pub fn update_location_for_changed_location_tags(
             commands.entity(id).insert((
                 Mesh3d(assets.billboard_mesh.clone()),
                 MeshMaterial3d(materials.add(new_material)),
-                BillboardMarker {
-                    caption_text: None,
+                Billboard {
                     offset: BILLBOARD_EMPTY_OFFSET,
                     hover_enabled: true,
                 },
+                LocationBillboardMarker,
             ));
             commands.entity(e).add_child(id);
             billboard_meshes.empty_billboard = Some(id);
-        } else if billboard_meshes.base.is_none() {
+        } else if !no_billboards && billboard_meshes.base.is_none() {
             // If location tags exist and no billboard base spawned, spawn billboard base
             let id = commands.spawn_empty().id();
 
             commands.entity(id).insert((
                 Mesh3d(assets.billboard_base_mesh.clone()),
                 MeshMaterial3d(assets.base_billboard_material.clone()),
-                BillboardMarker {
-                    caption_text: None,
+                Billboard {
                     offset: BILLBOARD_BASE_OFFSET,
                     hover_enabled: false,
                 },
+                LocationBillboardMarker,
             ));
             commands.entity(e).add_child(id);
             billboard_meshes.base = Some(id);
@@ -308,8 +312,8 @@ pub fn update_location_for_changed_location_tags(
 
             // If there exists a spawned billboard for this tag, shift existing billboard
             if let Some(billboard_id) = existing_billboard_id {
-                if let Ok(mut marker) = billboards.get_mut(billboard_id) {
-                    marker.offset = offset;
+                if let Ok((mut billboard, _)) = billboards.get_mut(billboard_id) {
+                    billboard.offset = offset;
                     offset += BILLBOARD_MARGIN;
 
                     continue;
@@ -347,11 +351,12 @@ pub fn update_location_for_changed_location_tags(
                 // A separate copy of the material is created for each billboard
                 // because we adjust their alpha properties during interaction.
                 MeshMaterial3d(materials.add(new_material)),
-                BillboardMarker {
-                    caption_text: Some(text),
-                    offset: offset,
+                Billboard {
+                    offset,
                     hover_enabled: true,
                 },
+                LocationBillboardMarker,
+                BillboardTooltip(text),
             ));
 
             commands.entity(e).add_child(id);
@@ -367,11 +372,19 @@ pub fn update_location_for_changed_location_tags(
 
             let mut make_new_billboard = true;
             if let Some(existing_billboard_id) = billboard_meshes.mutex_group {
-                if let Ok(mut marker) = billboards.get_mut(existing_billboard_id) {
-                    marker.offset = offset;
+                if let Ok((mut billboard, mut tooltip_opt)) =
+                    billboards.get_mut(existing_billboard_id)
+                {
+                    billboard.offset = offset;
                     offset += BILLBOARD_MARGIN;
 
-                    marker.caption_text = Some(mutex_group_text.clone());
+                    if let Some(tooltip) = tooltip_opt.as_mut() {
+                        tooltip.0 = mutex_group_text.clone();
+                    } else {
+                        commands
+                            .entity(existing_billboard_id)
+                            .insert(BillboardTooltip(mutex_group_text.clone()));
+                    }
                     make_new_billboard = false;
                 } else {
                     error!(
@@ -388,11 +401,12 @@ pub fn update_location_for_changed_location_tags(
                         // A separate copy of the material is created for each billboard
                         // because we adjust their alpha properties during interaction.
                         MeshMaterial3d(materials.add(material)),
-                        BillboardMarker {
-                            caption_text: Some(mutex_group_text),
-                            offset: offset,
+                        Billboard {
+                            offset,
                             hover_enabled: true,
                         },
+                        LocationBillboardMarker,
+                        BillboardTooltip(mutex_group_text),
                         ChildOf(e),
                     ))
                     .id();
