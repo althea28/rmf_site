@@ -79,7 +79,7 @@ pub fn update_billboard_location(
                 Dir3::new(new_position).unwrap(),
             )
             .rotation;
-        
+
         // If billboard has a parent, inverse the parent's transform to get the true global transform
         if let Some(child_of) = child_of {
             if let Ok(parent_global) = query_parents.get(child_of.parent()) {

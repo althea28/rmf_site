@@ -259,9 +259,18 @@ pub fn update_live_paths(
             None => continue,
         };
 
-        let final_target_idx = path_data
+        let mut final_target_idx = path_data
             .target_waypoint
             .min(path_data.waypoints.len().saturating_sub(1));
+
+        // Handle bug where target waypoint is prematurely updated, causing the robot to skip intermediate waypoints.
+        // Compare the progress of each waypoint with the current progress to get the true unreached waypoint.
+        // This loop likely only needs to check the current and previous waypoint.
+        while final_target_idx > 0
+            && path_data.current_progress <= path_data.waypoints[final_target_idx - 1].progress
+        {
+            final_target_idx -= 1;
+        }
 
         // Draw line from robot's current position to the target waypoint, then along the path to the final waypoint.
         if final_target_idx < path_data.waypoints.len() {
