@@ -1,14 +1,16 @@
 use bevy::prelude::*;
-use crossbeam_channel::Sender;
 use rmf_site_format::{Angle, NameInSite, Pose, Rotation};
 use rmf_site_msgs::nav_msgs::msg::Odometry;
 use roslibrust::rosbridge::ClientHandle;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 use super::live_state::LiveStreamState;
-use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
+use super::network_client::{
+    spawn_network_task, wait_until_inactive, LiveStreamHandler, VisualizationStreamChannel,
+};
 
 #[derive(Debug, Clone)]
 pub struct LiveEventOdom {
@@ -23,17 +25,23 @@ impl LiveStreamHandler for LiveEventOdom {
     fn spawn_stream(
         robot_name: String,
         client: ClientHandle,
-        sender: Sender<Self>,
-        connection_requested: Arc<AtomicBool>,
+        sender: UnboundedSender<Self>,
+        connect_flag: Arc<AtomicBool>,
+        connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/odom", robot_name);
 
         let task = async move {
             if let Ok(odom_sub) = client.subscribe::<Odometry>(&topic_name).await {
                 loop {
-                    let odom = odom_sub.next().await;
+                    let odom = tokio::select! {
+                        msg = odom_sub.next() => msg,
+                        _ = wait_until_inactive(&connection_active) => break,
+                    };
 
-                    if !connection_requested.load(Ordering::Relaxed) {
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
                         break;
                     }
 
@@ -71,13 +79,19 @@ pub struct LiveRobotsMap(pub HashMap<String, Entity>);
 
 pub fn update_live_robots(
     state: Res<LiveStreamState>,
-    channel: Res<VisualizationStreamChannel<LiveEventOdom>>,
+    mut channel: ResMut<VisualizationStreamChannel<LiveEventOdom>>,
     mut commands: Commands,
     mut robot_map: ResMut<LiveRobotsMap>,
-    mut live_query: Query<(&LiveRobotMarker, &mut Pose)>,
+    mut live_query: Query<(Entity, &LiveRobotMarker, &mut Pose)>,
     mut untracked_query: Query<(Entity, &NameInSite, &mut Pose), Without<LiveRobotMarker>>,
 ) {
-    if !state.connection_requested.load(Ordering::Relaxed) {
+    if !state.connection_active.load(Ordering::Relaxed) {
+        if !robot_map.0.is_empty() {
+            robot_map.0.clear();
+            for (entity, _, _) in live_query.iter_mut() {
+                commands.entity(entity).remove::<LiveRobotMarker>();
+            }
+        }
         return;
     }
 
@@ -85,7 +99,7 @@ pub fn update_live_robots(
         let mut found = false;
 
         // Find existing robot
-        for (robot, mut pose) in live_query.iter_mut() {
+        for (_, robot, mut pose) in live_query.iter_mut() {
             if robot.name == event.name {
                 pose.trans = [event.x, event.y, event.z];
                 pose.rot = Rotation::Yaw(Angle::Rad(event.yaw).match_variant(pose.rot.yaw()));
@@ -98,6 +112,14 @@ pub fn update_live_robots(
             continue;
         }
 
+        if let Some(&entity) = robot_map.0.get(&event.name) {
+            if let Ok((_, _, mut pose)) = untracked_query.get_mut(entity) {
+                pose.trans = [event.x, event.y, event.z];
+                pose.rot = Rotation::Yaw(Angle::Rad(event.yaw).match_variant(pose.rot.yaw()));
+                continue;
+            }
+        }
+
         // New untracked robot: find matching NameInSite
         for (entity, name_in_site, mut pose) in untracked_query.iter_mut() {
             if name_in_site.0 == event.name {
@@ -107,8 +129,10 @@ pub fn update_live_robots(
                 commands.entity(entity).insert(LiveRobotMarker {
                     name: event.name.clone(),
                 });
+
                 robot_map.0.insert(event.name.clone(), entity);
 
+                println!("Found existing robot: {}", event.name);
                 found = true;
                 break;
             }

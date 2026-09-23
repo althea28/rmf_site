@@ -1,13 +1,15 @@
 use bevy::prelude::*;
-use crossbeam_channel::Sender;
 use rmf_site_msgs::rmf_prototype_msgs::msg::{Plan, Progress};
 use roslibrust::rosbridge::ClientHandle;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 use super::live_state::LiveStreamState;
-use super::network_client::{spawn_network_task, LiveStreamHandler, VisualizationStreamChannel};
+use super::network_client::{
+    spawn_network_task, wait_until_inactive, LiveStreamHandler, VisualizationStreamChannel,
+};
 use super::odometry::{LiveRobotMarker, LiveRobotsMap};
 
 pub const PLANNED_PATH_Z_OFFSET: f32 = 0.05;
@@ -29,17 +31,23 @@ impl LiveStreamHandler for LiveEventPlan {
     fn spawn_stream(
         robot_name: String,
         client: ClientHandle,
-        sender: Sender<Self>,
-        connection_requested: Arc<AtomicBool>,
+        sender: UnboundedSender<Self>,
+        connect_flag: Arc<AtomicBool>,
+        connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan", robot_name);
 
         let task = async move {
             if let Ok(plan_sub) = client.subscribe::<Plan>(&topic_name).await {
                 loop {
-                    let plan_msg = plan_sub.next().await;
+                    let plan_msg = tokio::select! {
+                        msg = plan_sub.next() => msg,
+                        _ = wait_until_inactive(&connection_active) => break,
+                    };
 
-                    if !connection_requested.load(Ordering::Relaxed) {
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
                         break;
                     }
 
@@ -81,17 +89,23 @@ impl LiveStreamHandler for LiveEventProgress {
     fn spawn_stream(
         robot_name: String,
         client: ClientHandle,
-        sender: Sender<Self>,
-        connection_requested: Arc<AtomicBool>,
+        sender: UnboundedSender<Self>,
+        connect_flag: Arc<AtomicBool>,
+        connection_active: Arc<AtomicBool>,
     ) {
         let topic_name = format!("/{}/plan/progress", robot_name);
 
         let task = async move {
             if let Ok(prog_sub) = client.subscribe::<Progress>(&topic_name).await {
                 loop {
-                    let prog_msg = prog_sub.next().await;
+                    let prog_msg = tokio::select! {
+                        msg = prog_sub.next() => msg,
+                        _ = wait_until_inactive(&connection_active) => break,
+                    };
 
-                    if !connection_requested.load(Ordering::Relaxed) {
+                    if !connect_flag.load(Ordering::Relaxed)
+                        || !connection_active.load(Ordering::Relaxed)
+                    {
                         break;
                     }
 
@@ -132,14 +146,14 @@ impl PlannedPathData {
 
 pub fn update_live_paths(
     state: Res<LiveStreamState>,
-    plan_channel: Res<VisualizationStreamChannel<LiveEventPlan>>,
-    progress_channel: Res<VisualizationStreamChannel<LiveEventProgress>>,
+    mut plan_channel: ResMut<VisualizationStreamChannel<LiveEventPlan>>,
+    mut progress_channel: ResMut<VisualizationStreamChannel<LiveEventProgress>>,
     mut path_state: ResMut<LivePathsState>,
     robot_map: Res<LiveRobotsMap>,
     robot_query: Query<&Transform, With<LiveRobotMarker>>,
     mut gizmos: Gizmos,
 ) {
-    if !state.connection_requested.load(Ordering::Relaxed) {
+    if !state.connection_active.load(Ordering::Relaxed) {
         path_state.0.clear();
         return;
     }
@@ -199,23 +213,35 @@ pub fn update_live_paths(
             }
         }
 
-        if let Some(start_pos) = robot_pos {
-            let final_target_idx = path_data
-                .target_waypoint
-                .min(path_data.waypoints.len().saturating_sub(1));
+        let start_pos = match robot_pos {
+            Some(pos) => pos,
+            None => continue,
+        };
 
-            // Draw line from robot's current position to the target waypoint, then along the path to the final waypoint.
-            if final_target_idx < path_data.waypoints.len() {
-                let mut points_to_draw = vec![start_pos];
-                points_to_draw.extend(
-                    path_data.waypoints[final_target_idx..]
-                        .iter()
-                        .map(|wp| wp.position),
-                );
+        let mut final_target_idx = path_data
+            .target_waypoint
+            .min(path_data.waypoints.len().saturating_sub(1));
 
-                if points_to_draw.len() > 1 {
-                    gizmos.linestrip(points_to_draw, PLANNED_PATH_COLOR);
-                }
+        // Handle bug where target waypoint is prematurely updated, causing the robot to skip intermediate waypoints.
+        // Compare the progress of each waypoint with the current progress to get the true unreached waypoint.
+        // This loop likely only needs to check the current and previous waypoint.
+        while final_target_idx > 0
+            && path_data.current_progress <= path_data.waypoints[final_target_idx - 1].progress
+        {
+            final_target_idx -= 1;
+        }
+
+        // Draw line from robot's current position to the target waypoint, then along the path to the final waypoint.
+        if final_target_idx < path_data.waypoints.len() {
+            let mut points_to_draw = vec![start_pos];
+            points_to_draw.extend(
+                path_data.waypoints[final_target_idx..]
+                    .iter()
+                    .map(|wp| wp.position),
+            );
+
+            if points_to_draw.len() > 1 {
+                gizmos.linestrip(points_to_draw, PLANNED_PATH_COLOR);
             }
         }
     }

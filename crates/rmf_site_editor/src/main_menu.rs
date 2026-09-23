@@ -33,6 +33,9 @@ fn egui_ui(
     mut _exit: EventWriter<AppExit>,
     mut workspace_loader: WorkspaceLoader,
     mut _app_state: ResMut<State<AppState>>,
+    mut next_app_state: ResMut<NextState<AppState>>,
+    mut next_interaction_state: ResMut<NextState<crate::interaction::InteractionState>>,
+    mut load_site: EventWriter<LoadSite>,
     autoload: Option<ResMut<Autoload>>,
     primary_windows: Query<Entity, With<PrimaryWindow>>,
     mut live_stream_state: ResMut<LiveStreamState>,
@@ -64,7 +67,7 @@ fn egui_ui(
         .collapsible(false)
         .resizable(false)
         .title_bar(false)
-        .fixed_size(egui::vec2(600.0, 500.0))
+        .fixed_size(egui::vec2(700.0, 500.0))
         .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0., 0.))
         .show(ctx, |ui| {
             ui.add_space(10.);
@@ -106,7 +109,7 @@ fn egui_ui(
                         ui.add_space(MAIN_MENU_PADDING);
 
                         ui.horizontal(|ui| {
-                            ui.label("WebSocket URL:");
+                            ui.label("ROSBridge WS URL:");
                             ui.text_edit_singleline(&mut live_stream_state.url);
                         });
 
@@ -131,9 +134,10 @@ fn egui_ui(
                                     live_stream_state.connection_active.clone(),
                                 );
 
-                                workspace_loader.load_site(async move {
-                                    Ok(LoadSite::blank_L1("live".to_owned(), None))
-                                });
+                                next_app_state.set(AppState::SiteEditor);
+                                next_interaction_state
+                                    .set(crate::interaction::InteractionState::Enable);
+                                load_site.write(LoadSite::blank_L1("live".to_owned(), None));
 
                                 // ===================================================================
                                 // Temporarily spawn robot placeholder meshes to test data streaming.

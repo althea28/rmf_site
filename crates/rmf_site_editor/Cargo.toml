@@ -73,10 +73,12 @@ clap = { workspace = true, features = ["color", "derive", "help", "usage", "sugg
 bevy_egui = { workspace = true, default-features = true }
 crossflow = { workspace = true}
 web-time = {workspace = true}
-tokio = { version = "1.0", default-features = false, features = ["rt-multi-thread"] }
+tokio = { version = "1.0", default-features = false, features = ["rt-multi-thread", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 bevy_egui = { workspace = true, default-features = false, features = ["open_url", "default_fonts", "render"] }
+wasm-bindgen-futures = "0.4"
+gloo-timers = { version = "0.3", features = ["futures"] }
 crossflow = { workspace = true, features = ["single_threaded_async"]}
 js-sys = { workspace = true }
 wasm-bindgen = { workspace = true }
