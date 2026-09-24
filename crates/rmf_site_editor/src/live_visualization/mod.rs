@@ -7,7 +7,9 @@ use bevy::prelude::*;
 use rmf_site_egui::{HeaderPanel, HeaderTilePlugin};
 use std::sync::atomic::Ordering;
 
-use live_state::{LiveStreamState, LiveStreamStatusWidget};
+use live_state::{
+    auto_fetch_site_on_connect, process_site_download, LiveStreamState, LiveStreamStatusWidget,
+};
 use network_client::StreamPlugin;
 use odometry::{update_live_robots, LiveEventOdom, LiveRobotMarker, LiveRobotsMap};
 use planned_paths::{update_live_paths, LiveEventPlan, LiveEventProgress, LivePathsState};
@@ -24,7 +26,15 @@ impl Plugin for LiveVisualizationPlugin {
         .init_resource::<LiveStreamState>()
         .init_resource::<LiveRobotsMap>()
         .init_resource::<LivePathsState>()
-        .add_systems(Update, (update_live_robots, update_live_paths))
+        .add_systems(
+            Update,
+            (
+                update_live_robots,
+                update_live_paths,
+                auto_fetch_site_on_connect,
+                process_site_download,
+            ),
+        )
         .add_systems(OnEnter(crate::AppState::MainMenu), disconnect_live_stream);
 
         if app.world().get_resource::<HeaderPanel>().is_some() {
@@ -35,13 +45,14 @@ impl Plugin for LiveVisualizationPlugin {
 
 fn disconnect_live_stream(
     mut commands: Commands,
-    state: Res<LiveStreamState>,
+    mut state: ResMut<LiveStreamState>,
     mut robot_map: ResMut<LiveRobotsMap>,
     mut path_state: ResMut<LivePathsState>,
     live_robots: Query<Entity, With<LiveRobotMarker>>,
 ) {
     state.connection_requested.store(false, Ordering::Relaxed);
     state.connection_active.store(false, Ordering::Relaxed);
+    state.site_loaded = false;
     robot_map.0.clear();
     path_state.0.clear();
     for entity in live_robots.iter() {

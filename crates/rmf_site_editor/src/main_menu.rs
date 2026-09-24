@@ -18,12 +18,9 @@
 use super::demo_world::*;
 use crate::live_visualization::live_state::LiveStreamState;
 use crate::live_visualization::network_client::{start_rosbridge_subscriber, StreamRegistry};
-use crate::live_visualization::odometry::{LiveRobotMarker, LiveRobotsMap};
 use crate::{site::LoadSite, AppState, Autoload, WorkspaceLoader};
 use bevy::{app::AppExit, prelude::*, window::PrimaryWindow};
 use bevy_egui::{egui, EguiContexts};
-use rmf_site_format::{Angle, NameInSite, Pose, Rotation};
-use rmf_site_picking::Selectable;
 use std::sync::atomic::Ordering;
 
 const MAIN_MENU_PADDING: f32 = 10.0;
@@ -40,10 +37,6 @@ fn egui_ui(
     primary_windows: Query<Entity, With<PrimaryWindow>>,
     mut live_stream_state: ResMut<LiveStreamState>,
     registry: Res<StreamRegistry>,
-    mut robot_map: ResMut<LiveRobotsMap>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     if let Some(mut autoload) = autoload {
         #[cfg(not(target_arch = "wasm32"))]
@@ -113,6 +106,11 @@ fn egui_ui(
                             ui.text_edit_singleline(&mut live_stream_state.url);
                         });
 
+                        ui.horizontal(|ui| {
+                            ui.label("Site Data HTTP URL:");
+                            ui.text_edit_singleline(&mut live_stream_state.site_url);
+                        });
+
                         ui.add_space(MAIN_MENU_PADDING * 0.5);
 
                         let connection_initiated = live_stream_state
@@ -138,40 +136,6 @@ fn egui_ui(
                                 next_interaction_state
                                     .set(crate::interaction::InteractionState::Enable);
                                 load_site.write(LoadSite::blank_L1("live".to_owned(), None));
-
-                                // ===================================================================
-                                // Temporarily spawn robot placeholder meshes to test data streaming.
-                                // Long term end goal is to be able to stream model data to spawn in-world.
-                                let robot_mesh =
-                                    meshes.add(Mesh::from(Cylinder::new(0.2, 0.2)).rotated_by(
-                                        Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
-                                    ));
-                                let robot_mat = materials.add(StandardMaterial {
-                                    base_color: Color::WHITE,
-                                    ..default()
-                                });
-
-                                for name in ["robot_1", "robot_2"] {
-                                    let entity = commands
-                                        .spawn((
-                                            LiveRobotMarker {
-                                                name: name.to_string(),
-                                            },
-                                            Pose {
-                                                trans: [0.0, 0.0, 0.0],
-                                                rot: Rotation::Yaw(Angle::Rad(0.0)),
-                                            },
-                                            NameInSite(name.to_string()),
-                                            Mesh3d(robot_mesh.clone()),
-                                            MeshMaterial3d(robot_mat.clone()),
-                                            Transform::from_xyz(0.0, 0.0, 0.0),
-                                            Visibility::default(),
-                                        ))
-                                        .id();
-                                    commands.entity(entity).insert(Selectable::new(entity));
-                                    robot_map.0.insert(name.to_string(), entity);
-                                }
-                                // ===================================================================
                             }
                         });
                     });
