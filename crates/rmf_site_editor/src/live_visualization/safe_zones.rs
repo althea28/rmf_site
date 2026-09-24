@@ -42,7 +42,10 @@ impl LiveStreamHandler for LiveEventSafeZone {
         let topic_name = format!("/{}/plan/safe_zone", robot_name);
 
         let task = async move {
-            if let Ok(sz_sub) = client.subscribe::<SafeZone>(&topic_name).await {
+            if let Ok(sz_sub) = client
+                .subscribe_transient_local::<SafeZone>(&topic_name)
+                .await
+            {
                 loop {
                     let sz_msg = tokio::select! {
                         msg = sz_sub.next() => msg,
