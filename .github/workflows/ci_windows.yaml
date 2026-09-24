@@ -24,6 +24,11 @@ jobs:
         rustup target add x86_64-pc-windows-msvc
       shell: powershell
 
+    - name: Install vcstool
+      run: |
+        pipx install vcstool
+        pipx inject --force vcstool "setuptools<70.0.0"
+
     - name: Test rmf_site_format
       run: |
         cd crates/rmf_site_format
