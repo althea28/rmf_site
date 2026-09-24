@@ -187,13 +187,6 @@ async fn run_rosbridge_loop(
                 let mut subscribed_robots = HashSet::new();
 
                 loop {
-                    if !connection_requested.load(Ordering::Relaxed)
-                        || !connection_active.load(Ordering::Relaxed)
-                    {
-                        println!("Disconnecting from rosbridge discovery stream.");
-                        break;
-                    }
-
                     let msg = tokio::select! {
                         msg = discovery_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,

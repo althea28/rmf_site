@@ -40,12 +40,6 @@ impl LiveStreamHandler for LiveEventOdom {
         let task = async move {
             if let Ok(odom_sub) = client.subscribe::<Odometry>(&topic_name).await {
                 loop {
-                    if !connect_flag.load(Ordering::Relaxed)
-                        || !connection_active.load(Ordering::Relaxed)
-                    {
-                        break;
-                    }
-
                     let odom = tokio::select! {
                         msg = odom_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,

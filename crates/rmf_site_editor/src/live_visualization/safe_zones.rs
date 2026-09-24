@@ -44,12 +44,6 @@ impl LiveStreamHandler for LiveEventSafeZone {
         let task = async move {
             if let Ok(sz_sub) = client.subscribe::<SafeZone>(&topic_name).await {
                 loop {
-                    if !connect_flag.load(Ordering::Relaxed)
-                        || !connection_active.load(Ordering::Relaxed)
-                    {
-                        break;
-                    }
-
                     let sz_msg = tokio::select! {
                         msg = sz_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,
@@ -240,22 +234,24 @@ fn convert_costmap_to_texture(event: &LiveEventSafeZone) -> (Extent3d, Vec<u8>) 
         }
     };
 
+    let is_border = |x: i32, y: i32| -> bool {
+        for ny in (y - 1)..=(y + 1) {
+            for nx in (x - 1)..=(x + 1) {
+                if !is_safe_space(nx, ny) {
+                    return true;
+                }
+            }
+        }
+        false
+    };
+
     for y in 0..scaled_size_y {
         for x in 0..scaled_size_x {
             if is_safe_space(x, y) {
-                let is_border = !is_safe_space(x - 1, y)
-                    || !is_safe_space(x + 1, y)
-                    || !is_safe_space(x, y - 1)
-                    || !is_safe_space(x, y + 1)
-                    || !is_safe_space(x - 1, y - 1)
-                    || !is_safe_space(x + 1, y - 1)
-                    || !is_safe_space(x - 1, y + 1)
-                    || !is_safe_space(x + 1, y + 1);
-
                 let new_y = scaled_size_y - 1 - y;
                 let pixel_idx = (new_y * scaled_size_x + x) as usize * 4;
 
-                if is_border {
+                if is_border(x, y) {
                     rgba_data[pixel_idx..pixel_idx + 4].copy_from_slice(&SAFE_ZONE_OUTLINE_RGBA);
                 } else {
                     rgba_data[pixel_idx..pixel_idx + 4].copy_from_slice(&SAFE_ZONE_RGBA);

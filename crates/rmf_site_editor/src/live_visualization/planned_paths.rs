@@ -56,12 +56,6 @@ impl LiveStreamHandler for LiveEventPlan {
         let task = async move {
             if let Ok(plan_sub) = client.subscribe::<Plan>(&topic_name).await {
                 loop {
-                    if !connect_flag.load(Ordering::Relaxed)
-                        || !connection_active.load(Ordering::Relaxed)
-                    {
-                        break;
-                    }
-
                     let plan_msg = tokio::select! {
                         msg = plan_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,
@@ -132,12 +126,6 @@ impl LiveStreamHandler for LiveEventProgress {
         let task = async move {
             if let Ok(prog_sub) = client.subscribe::<Progress>(&topic_name).await {
                 loop {
-                    if !connect_flag.load(Ordering::Relaxed)
-                        || !connection_active.load(Ordering::Relaxed)
-                    {
-                        break;
-                    }
-
                     let prog_msg = tokio::select! {
                         msg = prog_sub.next() => msg,
                         _ = wait_until_inactive(&connection_active) => break,
@@ -364,14 +352,14 @@ fn draw_dependency_line(
 
         let perp = Vec3::new(-dir.y, dir.x, 0.0);
 
-        // 1. Draw circle at waiting robot's waiting position
+        // Draw circle at waiting robot's waiting position
         gizmos.circle(
             Isometry3d::new(waiting_pos, Quat::IDENTITY),
             DEPENDENCY_WAITING_POINT_SIZE,
             DEPENDENCY_WAITING_COLOR,
         );
 
-        // 2. Draw arrowhead to show blocking robot's movement
+        // Draw arrowhead to show blocking robot's movement
         let p1 = end_pos - dir * DEPENDENCY_ARROW_SIZE + perp * (DEPENDENCY_ARROW_SIZE * 0.5);
         let p2 = end_pos - dir * DEPENDENCY_ARROW_SIZE - perp * (DEPENDENCY_ARROW_SIZE * 0.5);
 

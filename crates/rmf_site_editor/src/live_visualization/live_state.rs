@@ -33,7 +33,7 @@ impl Default for LiveStreamState {
     }
 }
 
-// Holds receiver to receive HTTP site data asynchronously
+// Holds receiver to receive site data asynchronously
 #[derive(SystemParam)]
 pub struct LiveStreamStatusWidget<'w> {
     state: Res<'w, LiveStreamState>,
@@ -77,7 +77,7 @@ pub fn auto_fetch_site_on_connect(mut state: ResMut<LiveStreamState>, mut comman
     }
 }
 
-// Spawns LoadSite component once all site data bytes are ready
+// Spawns site from data once all site data bytes are ready
 pub fn process_site_download(
     mut commands: Commands,
     receiver: Option<ResMut<SiteFetchReceiver>>,
