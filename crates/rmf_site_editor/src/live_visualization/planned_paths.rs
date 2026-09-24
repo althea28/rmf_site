@@ -54,7 +54,7 @@ impl LiveStreamHandler for LiveEventPlan {
         let topic_name = format!("/{}/plan", robot_name);
 
         let task = async move {
-            if let Ok(plan_sub) = client.subscribe::<Plan>(&topic_name).await {
+            if let Ok(plan_sub) = client.subscribe_transient_local::<Plan>(&topic_name).await {
                 loop {
                     let plan_msg = tokio::select! {
                         msg = plan_sub.next() => msg,
@@ -124,7 +124,10 @@ impl LiveStreamHandler for LiveEventProgress {
         let topic_name = format!("/{}/plan/progress", robot_name);
 
         let task = async move {
-            if let Ok(prog_sub) = client.subscribe::<Progress>(&topic_name).await {
+            if let Ok(prog_sub) = client
+                .subscribe_transient_local::<Progress>(&topic_name)
+                .await
+            {
                 loop {
                     let prog_msg = tokio::select! {
                         msg = prog_sub.next() => msg,

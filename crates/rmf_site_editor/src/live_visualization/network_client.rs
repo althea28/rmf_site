@@ -169,7 +169,7 @@ async fn run_rosbridge_loop(
                     }
 
                     if health_client
-                        .subscribe::<ParticipantList>("/destination/discovery")
+                        .subscribe_transient_local::<ParticipantList>("/destination/discovery")
                         .await
                         .is_err()
                     {
@@ -181,7 +181,7 @@ async fn run_rosbridge_loop(
             });
 
             if let Ok(discovery_sub) = client
-                .subscribe::<ParticipantList>("/destination/discovery")
+                .subscribe_transient_local::<ParticipantList>("/destination/discovery")
                 .await
             {
                 let mut subscribed_robots = HashSet::new();
