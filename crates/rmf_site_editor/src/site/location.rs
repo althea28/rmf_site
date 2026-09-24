@@ -267,12 +267,12 @@ pub fn update_location_for_changed_location_tags(
             // If no location tags exist and no empty billboard marker spawned, spawn empty billboard marker
             let id = commands.spawn_empty().id();
             let new_material = materials
-                .get(&assets.empty_billboard_material)
+                .get(&assets.location_billboard_empty_material)
                 .unwrap()
                 .clone();
 
             commands.entity(id).insert((
-                Mesh3d(assets.billboard_mesh.clone()),
+                Mesh3d(assets.location_billboard_mesh.clone()),
                 MeshMaterial3d(materials.add(new_material)),
                 Billboard {
                     offset: BILLBOARD_EMPTY_OFFSET,
@@ -287,8 +287,8 @@ pub fn update_location_for_changed_location_tags(
             let id = commands.spawn_empty().id();
 
             commands.entity(id).insert((
-                Mesh3d(assets.billboard_base_mesh.clone()),
-                MeshMaterial3d(assets.base_billboard_material.clone()),
+                Mesh3d(assets.location_billboard_base_mesh.clone()),
+                MeshMaterial3d(assets.location_billboard_base_material.clone()),
                 Billboard {
                     offset: BILLBOARD_BASE_OFFSET,
                     hover_enabled: false,
@@ -330,15 +330,24 @@ pub fn update_location_for_changed_location_tags(
             let (material_handle, text) = match tag {
                 LocationTag::Charger => {
                     billboard_meshes.charging = Some(id);
-                    (&assets.charger_material, "charging".to_string())
+                    (
+                        &assets.location_billboard_charger_material,
+                        "charging".to_string(),
+                    )
                 }
                 LocationTag::ParkingSpot => {
                     billboard_meshes.parking = Some(id);
-                    (&assets.parking_material, "parking".to_string())
+                    (
+                        &assets.location_billboard_parking_material,
+                        "parking".to_string(),
+                    )
                 }
                 LocationTag::HoldingPoint => {
                     billboard_meshes.holding = Some(id);
-                    (&assets.holding_point_material, "holding".to_string())
+                    (
+                        &assets.location_billboard_holding_point_material,
+                        "holding".to_string(),
+                    )
                 }
                 // Workcells are not visualized
                 LocationTag::Workcell(_) => continue,
@@ -347,7 +356,7 @@ pub fn update_location_for_changed_location_tags(
             let new_material = materials.get(material_handle).unwrap().clone();
 
             commands.entity(id).insert((
-                Mesh3d(assets.billboard_mesh.clone()),
+                Mesh3d(assets.location_billboard_mesh.clone()),
                 // A separate copy of the material is created for each billboard
                 // because we adjust their alpha properties during interaction.
                 MeshMaterial3d(materials.add(new_material)),
@@ -397,7 +406,7 @@ pub fn update_location_for_changed_location_tags(
                 let material = materials.get(&assets.lockpad_material).unwrap().clone();
                 let id = commands
                     .spawn((
-                        Mesh3d(assets.billboard_mesh.clone()),
+                        Mesh3d(assets.location_billboard_mesh.clone()),
                         // A separate copy of the material is created for each billboard
                         // because we adjust their alpha properties during interaction.
                         MeshMaterial3d(materials.add(material)),
