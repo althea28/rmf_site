@@ -286,7 +286,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "parking_lot",
  "percent-encoding",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
  "x11rb",
 ]
 
@@ -6123,7 +6123,7 @@ dependencies = [
 [[package]]
 name = "roslibrust"
 version = "0.20.0"
-source = "git+https://github.com/althea28/roslibrust#becdf87f04fcfa83264185e4dd7e97f19c4b359a"
+source = "git+https://github.com/althea28/roslibrust#4c7a4a1afd8493a2910ea81ca3146873729add31"
 dependencies = [
  "roslibrust_codegen",
  "roslibrust_common",
@@ -6133,7 +6133,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_codegen"
 version = "0.20.0"
-source = "git+https://github.com/althea28/roslibrust#becdf87f04fcfa83264185e4dd7e97f19c4b359a"
+source = "git+https://github.com/althea28/roslibrust#4c7a4a1afd8493a2910ea81ca3146873729add31"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -6159,7 +6159,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_common"
 version = "0.20.0"
-source = "git+https://github.com/althea28/roslibrust#becdf87f04fcfa83264185e4dd7e97f19c4b359a"
+source = "git+https://github.com/althea28/roslibrust#4c7a4a1afd8493a2910ea81ca3146873729add31"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6173,7 +6173,7 @@ dependencies = [
 [[package]]
 name = "roslibrust_rosbridge"
 version = "0.20.0"
-source = "git+https://github.com/althea28/roslibrust#becdf87f04fcfa83264185e4dd7e97f19c4b359a"
+source = "git+https://github.com/althea28/roslibrust#4c7a4a1afd8493a2910ea81ca3146873729add31"
 dependencies = [
  "anyhow",
  "dashmap",
@@ -6691,7 +6691,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7950,7 +7950,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
