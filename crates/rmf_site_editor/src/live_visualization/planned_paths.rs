@@ -12,35 +12,41 @@ use super::network_client::{
 };
 use super::odometry::{LiveRobotMarker, LiveRobotsMap};
 
-pub const PLANNED_PATH_Z_OFFSET: f32 = 0.05;
-pub const PLANNED_PATH_COLOR: Color = Color::srgb(0.0, 1.0, 0.0);
+const PLANNED_PATH_Z_OFFSET: f32 = 0.05;
+const PLANNED_PATH_COLOR: Color = Color::srgb(0.0, 1.0, 0.0);
 
-pub const DEPENDENCY_Z_OFFSET: f32 = 0.051;
-pub const DEPENDENCY_LINE_COLOR: Color = Color::srgb(1.0, 0.5, 0.0);
-pub const DEPENDENCY_WAITING_COLOR: Color = Color::srgb(1.0, 0.0, 0.0);
-pub const DEPENDENCY_DASH_LENGTH: f32 = 0.15;
-pub const DEPENDENCY_GAP_LENGTH: f32 = 0.1;
-pub const DEPENDENCY_LINE_SPEED: f32 = 0.5;
-pub const DEPENDENCY_ARROW_SIZE: f32 = 0.1;
-pub const DEPENDENCY_WAITING_POINT_SIZE: f32 = 0.05;
+const DEPENDENCY_Z_OFFSET: f32 = 0.051;
+const DEPENDENCY_LINE_COLOR: Color = Color::srgb(1.0, 0.5, 0.0);
+const DEPENDENCY_WAITING_POINT_COLOR: Color = Color::srgb(1.0, 0.85, 0.0);
+const DEPENDENCY_DASH_LENGTH: f32 = 0.15;
+const DEPENDENCY_GAP_LENGTH: f32 = 0.1;
+const DEPENDENCY_LINE_SPEED: f32 = 0.5;
+const DEPENDENCY_ARROW_SIZE: f32 = 0.1;
+
+const PATH_POINT_OUTER_RADIUS: f32 = 0.05;
+const PATH_POINT_INNER_RADIUS: f32 = 0.02;
+
+const PATH_ENDPOINT_COLOR: Color = Color::srgb(1.0, 0.0, 0.0);
+const PATH_ENDPOINT_CROSS_RADIUS: f32 = 0.1;
+const PATH_ENDPOINT_Z_OFFSET: f32 = 0.001;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LiveBlocker {
-    pub name: String,
-    pub required_progress: f32,
+struct LiveBlocker {
+    name: String,
+    required_progress: f32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LiveWaypoint {
-    pub position: Vec3,
-    pub progress: f32,
-    pub departure_blockers: Vec<LiveBlocker>,
+struct LiveWaypoint {
+    position: Vec3,
+    progress: f32,
+    departure_blockers: Vec<LiveBlocker>,
 }
 
 #[derive(Debug, Clone)]
 pub struct LiveEventPlan {
-    pub name: String,
-    pub waypoints: Vec<LiveWaypoint>,
+    name: String,
+    waypoints: Vec<LiveWaypoint>,
 }
 
 impl LiveStreamHandler for LiveEventPlan {
@@ -108,9 +114,9 @@ impl LiveStreamHandler for LiveEventPlan {
 
 #[derive(Debug, Clone)]
 pub struct LiveEventProgress {
-    pub name: String,
-    pub target_waypoint: usize,
-    pub progress: f32,
+    name: String,
+    target_waypoint: usize,
+    progress: f32,
 }
 
 impl LiveStreamHandler for LiveEventProgress {
@@ -159,9 +165,9 @@ impl LiveStreamHandler for LiveEventProgress {
 pub struct LivePathsState(pub HashMap<String, PlannedPathData>);
 
 pub struct PlannedPathData {
-    pub waypoints: Vec<LiveWaypoint>,
-    pub target_waypoint: usize,
-    pub current_progress: f32,
+    waypoints: Vec<LiveWaypoint>,
+    target_waypoint: usize,
+    current_progress: f32,
 }
 
 impl PlannedPathData {
@@ -274,6 +280,10 @@ pub fn update_live_paths(
 
             if points_to_draw.len() > 1 {
                 gizmos.linestrip(points_to_draw, PLANNED_PATH_COLOR);
+
+                if let Some(final_wp) = path_data.waypoints.last() {
+                    draw_path_endpoint(&mut gizmos, final_wp.position, PATH_ENDPOINT_COLOR);
+                }
             }
         }
 
@@ -353,20 +363,39 @@ fn draw_dependency_line(
             current_dist += pattern_length;
         }
 
-        let perp = Vec3::new(-dir.y, dir.x, 0.0);
-
-        // Draw circle at waiting robot's waiting position
-        gizmos.circle(
-            Isometry3d::new(waiting_pos, Quat::IDENTITY),
-            DEPENDENCY_WAITING_POINT_SIZE,
-            DEPENDENCY_WAITING_COLOR,
-        );
-
-        // Draw arrowhead to show blocking robot's movement
-        let p1 = end_pos - dir * DEPENDENCY_ARROW_SIZE + perp * (DEPENDENCY_ARROW_SIZE * 0.5);
-        let p2 = end_pos - dir * DEPENDENCY_ARROW_SIZE - perp * (DEPENDENCY_ARROW_SIZE * 0.5);
-
-        gizmos.line(end_pos, p1, DEPENDENCY_LINE_COLOR);
-        gizmos.line(end_pos, p2, DEPENDENCY_LINE_COLOR);
+        draw_path_waiting_point(gizmos, waiting_pos, DEPENDENCY_WAITING_POINT_COLOR);
+        draw_path_arrowhead(gizmos, end_pos, dir, DEPENDENCY_LINE_COLOR);
     }
+}
+
+fn draw_path_arrowhead(gizmos: &mut Gizmos, pos: Vec3, dir: Vec3, color: Color) {
+    let perp = Vec3::new(-dir.y, dir.x, 0.0);
+    let p1 = pos - dir * DEPENDENCY_ARROW_SIZE + perp * (DEPENDENCY_ARROW_SIZE * 0.5);
+    let p2 = pos - dir * DEPENDENCY_ARROW_SIZE - perp * (DEPENDENCY_ARROW_SIZE * 0.5);
+
+    gizmos.line(pos, p1, color);
+    gizmos.line(pos, p2, color);
+}
+
+fn draw_path_waiting_point(gizmos: &mut Gizmos, pos: Vec3, color: Color) {
+    let new_pos = Isometry3d::new(pos + Vec3::Z * PATH_ENDPOINT_Z_OFFSET, Quat::IDENTITY);
+    gizmos.circle(new_pos, PATH_POINT_OUTER_RADIUS, color);
+    gizmos.circle(new_pos, PATH_POINT_INNER_RADIUS, color);
+}
+
+fn draw_path_endpoint(gizmos: &mut Gizmos, pos: Vec3, color: Color) {
+    let new_pos = pos + Vec3::Z * PATH_ENDPOINT_Z_OFFSET;
+    let isometry_pos = Isometry3d::new(new_pos, Quat::IDENTITY);
+    gizmos.circle(isometry_pos, PATH_POINT_OUTER_RADIUS, color);
+    gizmos.circle(isometry_pos, PATH_POINT_INNER_RADIUS, color);
+    gizmos.line(
+        new_pos + Vec3::X * PATH_ENDPOINT_CROSS_RADIUS,
+        new_pos - Vec3::X * PATH_ENDPOINT_CROSS_RADIUS,
+        color,
+    );
+    gizmos.line(
+        new_pos + Vec3::Y * PATH_ENDPOINT_CROSS_RADIUS,
+        new_pos - Vec3::Y * PATH_ENDPOINT_CROSS_RADIUS,
+        color,
+    );
 }
