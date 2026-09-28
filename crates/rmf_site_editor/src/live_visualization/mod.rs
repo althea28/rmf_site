@@ -1,3 +1,4 @@
+mod control;
 pub mod live_state;
 pub mod network_client;
 mod odometry;
@@ -8,6 +9,7 @@ use bevy::prelude::*;
 use rmf_site_egui::{HeaderPanel, HeaderTilePlugin};
 use std::sync::atomic::Ordering;
 
+use control::send_robot_paths;
 use live_state::{
     auto_fetch_site_on_connect, check_load_site_completion, load_site_status_ui,
     process_site_download, LiveStreamState, LiveStreamStatusWidget,
@@ -41,6 +43,7 @@ impl Plugin for LiveVisualizationPlugin {
                 process_site_download,
                 load_site_status_ui,
                 check_load_site_completion,
+                send_robot_paths,
             ),
         )
         .add_systems(OnEnter(crate::AppState::MainMenu), disconnect_live_stream);
