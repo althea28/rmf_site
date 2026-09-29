@@ -166,6 +166,13 @@ impl<'w, 's> AnchorSelection<'w, 's> {
         self.create_edges::<Lane<Entity>>(EdgeCreationContinuity::Continuous, AnchorScope::General);
     }
 
+    pub fn create_conveyors(&mut self) {
+        self.create_edges::<Conveyor<Entity>>(
+            EdgeCreationContinuity::Continuous,
+            AnchorScope::General,
+        );
+    }
+
     pub fn create_measurements(&mut self) {
         self.create_edges::<Measurement<Entity>>(
             EdgeCreationContinuity::Separate,

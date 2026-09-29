@@ -17,8 +17,8 @@
 
 use crate::site::{
     update_anchor_transforms, update_location_for_changed_location_tags, CollisionMeshMarker,
-    CurrentEditDrawing, CurrentLevel, DoorMarker, FiducialMarker, FloorMarker, LaneMarker,
-    LiftCabin, LiftCabinDoorMarker, LocationTags, MeasurementMarker, SiteUpdateSet,
+    ConveyorMarker, CurrentEditDrawing, CurrentLevel, DoorMarker, FiducialMarker, FloorMarker,
+    LaneMarker, LiftCabin, LiftCabinDoorMarker, LocationTags, MeasurementMarker, SiteUpdateSet,
     ToggleLiftDoorAvailability, VisualMeshMarker, WallMarker,
 };
 
@@ -171,6 +171,7 @@ impl Plugin for InteractionPlugin {
                 CategoryVisibilityPlugin::<VisualMeshMarker>::visible(true),
                 CategoryVisibilityPlugin::<CollisionMeshMarker>::visible(false)
                     .with_initialization(),
+                CategoryVisibilityPlugin::<ConveyorMarker>::visible(true),
                 CategoryVisibilityPlugin::<MeasurementMarker>::visible(true),
                 CategoryVisibilityPlugin::<WallMarker>::visible(true),
             ))

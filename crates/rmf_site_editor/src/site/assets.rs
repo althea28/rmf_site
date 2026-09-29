@@ -145,6 +145,8 @@ pub struct SiteAssets {
     pub physical_camera_material: Handle<StandardMaterial>,
     pub occupied_material: Handle<StandardMaterial>,
     pub default_mesh_grey_material: Handle<StandardMaterial>,
+    pub conveyor_metal_material: Handle<StandardMaterial>,
+    pub conveyor_belt_material: Handle<StandardMaterial>,
     pub location_tag_mesh: Handle<Mesh>,
     pub base_billboard_material: Handle<StandardMaterial>,
     pub charger_material: Handle<StandardMaterial>,
@@ -281,6 +283,18 @@ impl FromWorld for SiteAssets {
             materials.add(old_default_material(Color::srgba(0.8, 0.1, 0.1, 0.2)));
         let default_mesh_grey_material =
             materials.add(old_default_material(Color::srgb(0.7, 0.7, 0.7)));
+        let conveyor_metal_material = materials.add(StandardMaterial {
+            base_color: Color::srgb(0.95, 0.95, 0.95),
+            metallic: 0.95,
+            perceptual_roughness: 0.1,
+            ..default()
+        });
+        let conveyor_belt_material = materials.add(StandardMaterial {
+            base_color: Color::srgb(0.05, 0.05, 0.05),
+            metallic: 0.01,
+            perceptual_roughness: 0.8,
+            ..default()
+        });
 
         let base_billboard_material = materials.add(billboard_material(base_billboard_texture));
         let charger_material: Handle<StandardMaterial> =
@@ -393,6 +407,8 @@ impl FromWorld for SiteAssets {
             physical_camera_material,
             occupied_material,
             default_mesh_grey_material,
+            conveyor_metal_material,
+            conveyor_belt_material,
             location_tag_mesh,
             base_billboard_material,
             charger_material,

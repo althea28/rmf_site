@@ -44,6 +44,7 @@ impl Plugin for StandardCreationPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins((
             LaneCreationPlugin::default(),
+            ConveyorCreationPlugin::default(),
             LocationCreationPlugin::default(),
             WallCreationPlugin::default(),
             DoorCreationPlugin::default(),
@@ -81,6 +82,32 @@ impl<'w, 's> WidgetSystem<Tile> for LaneCreation<'w, 's> {
         if let AppState::SiteEditor = params.app_state.get() {
             if button_clicked(ui, "↔", "Lane") {
                 params.anchor_selection.create_lanes();
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct ConveyorCreationPlugin {}
+
+impl Plugin for ConveyorCreationPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(HeaderTilePlugin::<ConveyorCreation>::new());
+    }
+}
+
+#[derive(SystemParam)]
+struct ConveyorCreation<'w, 's> {
+    app_state: Res<'w, State<AppState>>,
+    anchor_selection: AnchorSelection<'w, 's>,
+}
+
+impl<'w, 's> WidgetSystem<Tile> for ConveyorCreation<'w, 's> {
+    fn show(_: Tile, ui: &mut Ui, state: &mut SystemState<Self>, world: &mut World) {
+        let mut params = state.get_mut(world);
+        if let AppState::SiteEditor = params.app_state.get() {
+            if button_clicked(ui, "〰", "Conveyor") {
+                params.anchor_selection.create_conveyors();
             }
         }
     }
